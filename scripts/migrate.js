@@ -13,7 +13,9 @@ const uri = process.env.MONGODB_URI
     || (process.env.DATABASE_URL?.startsWith('mongodb') ? process.env.DATABASE_URL : null);
 
 if (!uri) {
-    console.error('\n❌  Set MONGODB_URI in .env (mongodb+srv://...)\n');
+    console.error('\n❌  MONGODB_URI is missing.');
+    console.error('    Render → orbit-escape → Environment → add MONGODB_URI');
+    console.error('    Example: mongodb+srv://user:pass@cluster.mongodb.net/orbit_escape?retryWrites=true&w=majority\n');
     process.exit(1);
 }
 
@@ -39,7 +41,8 @@ async function migrate() {
 
         console.log('\n✅  All indexes ready.\n');
     } catch (err) {
-        console.error('\n❌  Migration failed:', err.message);
+        console.error('\n❌  Migration failed:', err.message || err);
+        console.error('    Check: Atlas Network Access allows 0.0.0.0/0, password URL-encoded (# → %23)\n');
         process.exit(1);
     } finally {
         await client.close();
