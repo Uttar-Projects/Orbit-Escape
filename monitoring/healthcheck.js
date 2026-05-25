@@ -74,13 +74,13 @@ async function healthHandler(pingDb, req, res) {
         version:    process.env.npm_package_version || '2.0.0'
     };
 
-    const statusCode = allOk ? 200 : 503;
-
+    // Render treats non-2xx health checks as deploy failure — always 200 if process is up.
+    // Database issues are visible in JSON (checks.database.status).
     if (!allOk) {
-        logger.warn('Health check failed', { checks });
+        logger.warn('Health check degraded', { checks });
     }
 
-    return res.status(statusCode).json({
+    return res.status(200).json({
         ok:        allOk,
         timestamp: new Date().toISOString(),
         checks

@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "start:prod": "node scripts/migrate.js && node server.js",
+    "start:prod": "node scripts/start-prod.js",
     "dev": "nodemon server.js",
     "db:migrate": "node scripts/migrate.js",
     "test:auth": "node scripts/test-auth.js",

@@ -12,9 +12,16 @@ const logger = require('../config/logger');
 
 let Sentry = null;
 
+function isValidSentryDsn(dsn) {
+    if (!dsn || typeof dsn !== 'string') return false;
+    const t = dsn.trim();
+    if (!t || t === 'value' || t === 'your-dsn-here') return false;
+    return /^https?:\/\/.+@.+\/.+/.test(t);
+}
+
 function init() {
     const dsn = process.env.SENTRY_DSN;
-    if (!dsn) {
+    if (!isValidSentryDsn(dsn)) {
         logger.info('Sentry: SENTRY_DSN not set — error tracking disabled');
         return;
     }

@@ -8,8 +8,8 @@ services:
     plan: free
     region: oregon
     branch: main
-    buildCommand: npm ci && npm run db:migrate
-    startCommand: node server.js
+    buildCommand: npm ci
+    startCommand: npm run start:prod
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV

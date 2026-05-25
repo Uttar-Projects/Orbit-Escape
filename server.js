@@ -431,15 +431,20 @@ app.use((err, req, res, _next) => {
 async function start() {
     let databaseStatus = 'connected';
 
-    try {
-        await db.testConnection();
-    } catch (err) {
-        if (IS_PROD) {
-            logger.error('Startup failed', { error: err.message });
-            process.exit(1);
+    const maxAttempts = IS_PROD ? 5 : 1;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            await db.testConnection();
+            break;
+        } catch (err) {
+            if (attempt < maxAttempts) {
+                logger.warn('MongoDB connect retry', { attempt, error: err.message });
+                await new Promise(r => setTimeout(r, 2000 * attempt));
+                continue;
+            }
+            databaseStatus = 'offline (game uses browser localStorage until DB connects)';
+            logger.error('MongoDB unavailable — starting anyway', { error: err.message });
         }
-        databaseStatus = 'offline (dev mode — game uses browser localStorage)';
-        logger.warn('MongoDB unavailable — starting without database', { error: err.message });
     }
 
     app.listen(PORT, () => {

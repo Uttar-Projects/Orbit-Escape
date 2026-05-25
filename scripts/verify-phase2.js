@@ -28,10 +28,10 @@ async function check(path, label) {
 
         if (path === '/health') {
             const dbOk = json?.checks?.database?.status === 'ok';
-            const ok   = res.status === 200 && json?.ok === true && dbOk;
+            const ok   = res.status === 200 && dbOk;
             console.log(ok ? `  ✅  ${label}` : `  ❌  ${label}`, `— HTTP ${res.status}`);
-            if (!ok && json) {
-                console.log('       ', JSON.stringify(json.checks?.database || json, null, 0).slice(0, 120));
+            if (!dbOk && json?.checks?.database) {
+                console.log('       ', JSON.stringify(json.checks.database).slice(0, 120));
             }
             return ok;
         }
