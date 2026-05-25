@@ -19,17 +19,17 @@ const START_TIME = Date.now();
 
 /**
  * Build and send a health report.
- * @param {object} dbPool  — pg Pool instance
+ * @param {Function} pingDb  — async () => void (e.g. db.testConnection)
  */
-async function healthHandler(dbPool, req, res) {
+async function healthHandler(pingDb, req, res) {
     const checks = {};
     let allOk    = true;
 
     // ── Database ──────────────────────────────────────────────────────────
     try {
         const t0  = Date.now();
-        await dbPool.query('SELECT 1');
-        checks.database = { status: 'ok', latencyMs: Date.now() - t0 };
+        await pingDb();
+        checks.database = { status: 'ok', latencyMs: Date.now() - t0, engine: 'mongodb' };
     } catch (err) {
         checks.database = { status: 'error', error: err.message };
         allOk = false;

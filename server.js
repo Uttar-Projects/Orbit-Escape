@@ -25,7 +25,12 @@ const { createSessionToken,
 // ---------------------------------------------------------------------------
 // Env validation
 // ---------------------------------------------------------------------------
-const REQUIRED = ['TELEGRAM_BOT_TOKEN', 'DATABASE_URL', 'SESSION_SECRET'];
+const HAS_DB = !!(process.env.MONGODB_URI
+    || (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('mongodb')));
+const REQUIRED = ['TELEGRAM_BOT_TOKEN', 'SESSION_SECRET'];
+if (process.env.NODE_ENV === 'production' && !HAS_DB) {
+    REQUIRED.push('MONGODB_URI');
+}
 const missing  = REQUIRED.filter(k => !process.env[k]);
 if (missing.length) {
     logger.error(`Missing env vars: ${missing.join(', ')}. Copy .env.example → .env`);
@@ -207,7 +212,7 @@ app.use('/api/', apiLimiter);
 // ---------------------------------------------------------------------------
 
 // ── GET /health ──────────────────────────────────────────────────────────────
-app.get('/health', (req, res) => healthHandler(db.pool, req, res));
+app.get('/health', (req, res) => healthHandler(db.testConnection, req, res));
 
 // ── POST /api/get-progress ───────────────────────────────────────────────────
 app.post('/api/get-progress', requireTelegramAuth, async (req, res) => {
@@ -230,14 +235,10 @@ app.post('/api/session/start', sessionLimiter, requireTelegramAuth, async (req, 
     if (userId == null) return res.status(400).json({ ok: false, error: 'No user' });
 
     try {
-        // Ensure the user exists in user_progress so the FK constraint on
-        // game_sessions is satisfied (INSERT ... ON CONFLICT DO NOTHING)
-        await db.pool.query(
-            `INSERT INTO user_progress (telegram_id, username, first_name)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (telegram_id) DO UPDATE SET last_seen = now()`,
-            [userId, req.tgUser?.username || null, req.tgUser?.first_name || null]
-        );
+        await db.ensureUser(userId, {
+            username:  req.tgUser?.username,
+            firstName: req.tgUser?.first_name
+        });
 
         const sessionId    = await db.createGameSession(userId);
         const sessionToken = createSessionToken(userId, sessionId);
@@ -403,21 +404,7 @@ app.post('/api/leaderboard/friends', requireTelegramAuth, async (req, res) => {
     }
 
     try {
-        const { rows } = await db.pool.query(
-            `SELECT telegram_id, username, first_name, best_score, total_xp
-             FROM user_progress
-             WHERE telegram_id = ANY($1::bigint[])
-             ORDER BY best_score DESC
-             LIMIT 50`,
-            [safe]
-        );
-        const leaderboard = rows.map((r, i) => ({
-            rank:      i + 1,
-            userId:    r.telegram_id,
-            name:      r.username ? `@${r.username}` : (r.first_name || 'Anonymous'),
-            bestScore: r.best_score,
-            totalXp:   r.total_xp
-        }));
+        const leaderboard = await db.getFriendsLeaderboard(safe);
         return res.json({ ok: true, leaderboard });
     } catch (err) {
         sentry.captureException(err);
@@ -452,7 +439,7 @@ async function start() {
             process.exit(1);
         }
         databaseStatus = 'offline (dev mode — game uses browser localStorage)';
-        logger.warn('PostgreSQL unavailable — starting without database', { error: err.message });
+        logger.warn('MongoDB unavailable — starting without database', { error: err.message });
     }
 
     app.listen(PORT, () => {
@@ -466,7 +453,7 @@ async function start() {
     });
 }
 
-process.on('SIGTERM', async () => { logger.info('SIGTERM — shutting down'); await db.pool.end(); process.exit(0); });
-process.on('SIGINT',  async () => { logger.info('SIGINT  — shutting down'); await db.pool.end(); process.exit(0); });
+process.on('SIGTERM', async () => { logger.info('SIGTERM — shutting down'); await db.close(); process.exit(0); });
+process.on('SIGINT',  async () => { logger.info('SIGINT  — shutting down'); await db.close(); process.exit(0); });
 
 start();

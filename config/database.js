@@ -1,111 +1,191 @@
 'use strict';
 
-const { Pool } = require('pg');
+const crypto   = require('crypto');
+const { MongoClient } = require('mongodb');
 const logger   = require('./logger');
 
-const pool = new Pool({
-    connectionString:        process.env.DATABASE_URL,
-    max:                     10,
-    idleTimeoutMillis:       30_000,
-    connectionTimeoutMillis: 5_000,
-    ssl: process.env.NODE_ENV === 'production'
-        ? { rejectUnauthorized: false }
-        : false
-});
+function getMongoUri() {
+    const uri = process.env.MONGODB_URI
+        || (process.env.DATABASE_URL?.startsWith('mongodb') ? process.env.DATABASE_URL : null);
+    return uri || null;
+}
 
-pool.on('error', err => {
-    logger.error('PostgreSQL pool unexpected error', { error: err.message });
-});
+const uri = getMongoUri();
+let client = null;
+let db     = null;
+
+async function getDb() {
+    if (!uri) throw new Error('MONGODB_URI not configured');
+    if (db) return db;
+    client = new MongoClient(uri);
+    await client.connect();
+    db = client.db(); // database name from connection string
+    logger.info('MongoDB connected successfully');
+    return db;
+}
 
 async function testConnection() {
-    const client = await pool.connect();
-    await client.query('SELECT 1');
-    client.release();
-    logger.info('PostgreSQL connected successfully');
+    const database = await getDb();
+    await database.command({ ping: 1 });
 }
+
+async function close() {
+    if (client) {
+        await client.close();
+        client = null;
+        db     = null;
+    }
+}
+
+// Legacy alias for healthcheck / shutdown callers
+const pool = { query: () => { throw new Error('Use MongoDB API — pool.query is not available'); } };
 
 // ── user_progress ─────────────────────────────────────────────────────────────
 async function getProgress(telegramId) {
-    const { rows } = await pool.query(
-        `SELECT best_score, total_xp FROM user_progress WHERE telegram_id = $1`,
-        [telegramId]
+    const database = await getDb();
+    const doc = await database.collection('user_progress').findOne(
+        { telegramId },
+        { projection: { bestScore: 1, totalXp: 1 } }
     );
-    return rows.length ? { bestScore: rows[0].best_score, totalXp: rows[0].total_xp } : null;
+    return doc ? { bestScore: doc.bestScore ?? 0, totalXp: doc.totalXp ?? 0 } : null;
+}
+
+async function ensureUser(telegramId, { username, firstName } = {}) {
+    const database = await getDb();
+    const now = new Date();
+    await database.collection('user_progress').updateOne(
+        { telegramId },
+        {
+            $setOnInsert: { telegramId, bestScore: 0, totalXp: 0, createdAt: now },
+            $set: {
+                lastSeen: now,
+                ...(username != null ? { username } : {}),
+                ...(firstName != null ? { firstName } : {})
+            }
+        },
+        { upsert: true }
+    );
 }
 
 async function upsertProgress(telegramId, { username, firstName, score, xp }) {
-    const { rows } = await pool.query(
-        `INSERT INTO user_progress
-             (telegram_id, username, first_name, best_score, total_xp, last_seen)
-         VALUES ($1, $2, $3, $4, $5, now())
-         ON CONFLICT (telegram_id) DO UPDATE
-             SET best_score = GREATEST(user_progress.best_score, EXCLUDED.best_score),
-                 total_xp   = EXCLUDED.total_xp,
-                 username   = EXCLUDED.username,
-                 first_name = EXCLUDED.first_name,
-                 last_seen  = now()
-         RETURNING best_score, total_xp`,
-        [telegramId, username || null, firstName || null, score, xp]
+    const database = await getDb();
+    const now = new Date();
+    await ensureUser(telegramId, { username, firstName });
+
+    const existing = await database.collection('user_progress').findOne({ telegramId });
+    const bestScore = Math.max(existing?.bestScore ?? 0, score);
+
+    await database.collection('user_progress').updateOne(
+        { telegramId },
+        {
+            $set: {
+                bestScore,
+                totalXp: xp,
+                lastSeen: now,
+                ...(username != null ? { username } : {}),
+                ...(firstName != null ? { firstName } : {})
+            }
+        }
     );
-    return { bestScore: rows[0].best_score, totalXp: rows[0].total_xp };
+
+    return { bestScore, totalXp: xp };
 }
 
 async function getLeaderboard(limit = 10) {
-    const { rows } = await pool.query(
-        `SELECT telegram_id, username, first_name, best_score, total_xp
-         FROM user_progress ORDER BY best_score DESC LIMIT $1`,
-        [limit]
-    );
+    const database = await getDb();
+    const rows = await database.collection('user_progress')
+        .find({})
+        .sort({ bestScore: -1 })
+        .limit(limit)
+        .toArray();
+
     return rows.map((r, i) => ({
         rank:      i + 1,
-        userId:    r.telegram_id,
-        name:      r.username ? `@${r.username}` : (r.first_name || 'Anonymous'),
-        bestScore: r.best_score,
-        totalXp:   r.total_xp
+        userId:    r.telegramId,
+        name:      r.username ? `@${r.username}` : (r.firstName || 'Anonymous'),
+        bestScore: r.bestScore ?? 0,
+        totalXp:   r.totalXp ?? 0
+    }));
+}
+
+async function getFriendsLeaderboard(friendIds) {
+    const database = await getDb();
+    const rows = await database.collection('user_progress')
+        .find({ telegramId: { $in: friendIds } })
+        .sort({ bestScore: -1 })
+        .limit(50)
+        .toArray();
+
+    return rows.map((r, i) => ({
+        rank:      i + 1,
+        userId:    r.telegramId,
+        name:      r.username ? `@${r.username}` : (r.firstName || 'Anonymous'),
+        bestScore: r.bestScore ?? 0,
+        totalXp:   r.totalXp ?? 0
     }));
 }
 
 // ── game_sessions (anti-cheat) ────────────────────────────────────────────────
 async function createGameSession(telegramId) {
-    const { rows } = await pool.query(
-        `INSERT INTO game_sessions (telegram_id, started_at)
-         VALUES ($1, now()) RETURNING id`,
-        [telegramId]
-    );
-    return rows[0].id;
+    const database = await getDb();
+    const sessionId = crypto.randomUUID();
+    await database.collection('game_sessions').insertOne({
+        sessionId,
+        telegramId,
+        startedAt: new Date(),
+        endedAt:   null,
+        finalScore: null,
+        accepted:  null
+    });
+    return sessionId;
 }
 
 async function closeGameSession(sessionId, telegramId, score, accepted) {
-    await pool.query(
-        `UPDATE game_sessions
-         SET ended_at = now(), final_score = $1, accepted = $2
-         WHERE id = $3 AND telegram_id = $4`,
-        [score, accepted, sessionId, telegramId]
+    const database = await getDb();
+    await database.collection('game_sessions').updateOne(
+        { sessionId, telegramId },
+        { $set: { endedAt: new Date(), finalScore: score, accepted } }
     );
 }
 
 async function getSessionStartTime(sessionId, telegramId) {
-    const { rows } = await pool.query(
-        `SELECT started_at FROM game_sessions
-         WHERE id = $1 AND telegram_id = $2 AND ended_at IS NULL`,
-        [sessionId, telegramId]
-    );
-    return rows.length ? rows[0].started_at : null;
+    const database = await getDb();
+    const doc = await database.collection('game_sessions').findOne({
+        sessionId,
+        telegramId,
+        endedAt: null
+    });
+    return doc?.startedAt ?? null;
 }
 
 // ── score_submissions (audit) ─────────────────────────────────────────────────
 async function logSubmission(telegramId, score, xp, sessionMs, accepted, reason) {
-    await pool.query(
-        `INSERT INTO score_submissions
-             (telegram_id, score, xp_delta, session_ms, accepted, reject_reason)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [telegramId, score, xp, sessionMs, accepted, reason || null]
-    ).catch(() => {});
+    try {
+        const database = await getDb();
+        await database.collection('score_submissions').insertOne({
+            telegramId,
+            score,
+            xpDelta: xp,
+            sessionMs,
+            accepted,
+            rejectReason: reason || null,
+            submittedAt: new Date()
+        });
+    } catch { /* non-critical */ }
 }
 
 module.exports = {
-    pool, testConnection,
-    getProgress, upsertProgress, getLeaderboard,
-    createGameSession, closeGameSession, getSessionStartTime,
+    pool,
+    getDb,
+    testConnection,
+    close,
+    getProgress,
+    ensureUser,
+    upsertProgress,
+    getLeaderboard,
+    getFriendsLeaderboard,
+    createGameSession,
+    closeGameSession,
+    getSessionStartTime,
     logSubmission
 };
