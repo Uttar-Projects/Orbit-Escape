@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Orbit Escape</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Fredoka:wght@300..700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script>
+        window.__API_BASE__         = '/api';
+        window.__ADSGRAM_BLOCK_ID__ = '32481';
+        window.__BOT_USERNAME__     = 'OrbitEscapeGameBot';
+    </script>
+</head>
+<body>
+
+<!-- ── Loading ──────────────────────────────────────────────────────── -->
+<div id="loading-screen">
+    <div class="loading-planet"></div>
+    <div class="loading-title">ORBIT ESCAPE</div>
+    <div class="loading-sub">Loading mission data...</div>
+    <div class="loading-bar-wrap"><div class="loading-bar-fill" id="loading-bar"></div></div>
+    <div class="loading-status" id="loading-status">Connecting...</div>
+</div>
+
+<!-- ── Reconnect ────────────────────────────────────────────────────── -->
+<div id="reconnect-banner">
+    ⚠ CONNECTION LOST — scores save locally
+    <button id="reconnect-btn">RETRY</button>
+</div>
+
+<!-- ── HUD ──────────────────────────────────────────────────────────── -->
+<div id="top-header">
+    <h2 id="score">0</h2>
+    <div id="best">TOP: 0</div>
+</div>
+
+<div id="health-ui-container">
+    <div class="label">SHIELD HP</div>
+    <div id="health-container"><div id="health-fill"></div></div>
+</div>
+
+<div id="multiplier-hud"></div>
+
+<div id="daily-mode-hud" style="display:none">
+    <span class="daily-mode-icon">📅</span>
+    <span class="daily-mode-text">DAILY CHALLENGE</span>
+    <span id="daily-mode-date" class="daily-mode-date"></span>
+</div>
+
+<div id="pause-btn" style="display:none">
+    <svg id="pause-icon" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+    <svg id="play-icon"  viewBox="0 0 24 24" style="display:none"><path d="M8 5v14l11-7z"/></svg>
+</div>
+
+<button id="mute-btn" title="Toggle sound">🔊</button>
+
+<div id="save-status"></div>
+
+<div id="commentary-box">
+    <div class="label">MISSION STATUS</div>
+    <div id="commentary">READY FOR TAKEOFF! 👨‍🚀</div>
+</div>
+
+<!-- ── Tutorial ─────────────────────────────────────────────────────── -->
+<div id="tutorial-overlay" style="display:none">
+    <h1>HOW TO PLAY</h1>
+    <div class="tutorial-step active" data-step="1">
+        <div class="tutorial-icon">🛸</div>
+        <div class="tutorial-text">Tap anywhere to <b>REVERSE</b> your orbit direction!</div>
+        <button class="main-cta next-tutorial">GOT IT!</button>
+    </div>
+    <div class="tutorial-step" data-step="2">
+        <div class="tutorial-icon">☄️</div>
+        <div class="tutorial-text">Avoid debris! Near misses build your <b>COMBO MULTIPLIER</b>. Higher combo = more score!</div>
+        <button class="main-cta next-tutorial">NEXT</button>
+    </div>
+    <div class="tutorial-step" data-step="3">
+        <div class="tutorial-icon">💎</div>
+        <div class="tutorial-text">Collect <b>POWER-UPS</b> orbiting the planet — shields, score bursts, and slow-time!</div>
+        <button class="main-cta next-tutorial">NEXT</button>
+    </div>
+    <div class="tutorial-step" data-step="4">
+        <div class="tutorial-icon">🔋</div>
+        <div class="tutorial-text">Shields <b>REGENERATE</b> over time. Survive wave breaks to recharge!</div>
+        <button class="main-cta" id="close-tutorial">LIFT OFF!</button>
+    </div>
+</div>
+
+<!-- ── Main Menu ────────────────────────────────────────────────────── -->
+<div id="menu" style="display:none">
+    <h1 id="menu-title">ORBIT ESCAPE</h1>
+    <div id="level-section">
+        <div class="level-header">
+            <span id="rank-name">NOVICE PILOT</span>
+            <span id="level-text">LVL 1</span>
+        </div>
+        <div id="xp-container"><div id="xp-fill"></div></div>
+    </div>
+    <div class="theme-selector" id="theme-selector"></div>
+    <div id="final-stats"></div>
+    <div id="daily-info" class="daily-info">
+        <div class="daily-info-head">📅 TODAY'S DAILY CHALLENGE</div>
+        <div id="daily-info-date" class="daily-info-date">Loading…</div>
+        <p class="daily-info-desc">Same obstacle pattern for every pilot today. Compete on equal footing!</p>
+    </div>
+    <button class="main-cta" id="start-btn">🚀 LAUNCH!</button>
+    <button class="main-cta daily" id="daily-btn" style="margin-top:10px">📅 DAILY CHALLENGE</button>
+    <button class="secondary-btn" id="leaderboard-btn">🏆 LEADERBOARD</button>
+</div>
+
+<!-- ── Leaderboard ──────────────────────────────────────────────────── -->
+<div id="leaderboard-panel" style="display:none">
+    <h1>🏆 TOP PILOTS</h1>
+    <div class="lb-tabs">
+        <button class="lb-tab active" id="lb-global-tab">GLOBAL</button>
+        <button class="lb-tab"        id="lb-friends-tab">FRIENDS</button>
+        <button class="lb-tab"        id="lb-daily-tab">DAILY</button>
+    </div>
+    <div id="leaderboard-list"></div>
+    <button class="main-cta" id="leaderboard-close-btn" style="margin-top:15px">BACK</button>
+</div>
+
+<!-- ── Pause ────────────────────────────────────────────────────────── -->
+<div id="pause-menu" style="display:none">
+    <h1>PAUSED</h1>
+    <div style="margin-bottom:25px;font-weight:800;color:#666">COSMIC COFFEE BREAK? ☕</div>
+    <button class="main-cta" id="resume-btn">RESUME</button>
+    <button id="quit-btn" class="text-btn">QUIT MISSION</button>
+</div>
+
+<!-- ── Revive ────────────────────────────────────────────────────────── -->
+<div id="revive-screen" style="display:none">
+    <h1>ABDUCTED! 🛸</h1>
+    <p style="color:#444;font-weight:800;margin-bottom:30px">Watch an ad to beam back up!</p>
+    <button class="main-cta" id="revive-btn">WATCH AD ▶ RECHARGE ⚡</button>
+    <button id="skip-revive" class="text-btn">CRASH LAND</button>
+</div>
+
+<!-- ── Ad Overlay ───────────────────────────────────────────────────── -->
+<div id="ad-overlay" style="display:none">
+    <h1 style="color:#ffde59">📡 AD LOADING</h1>
+    <div id="ad-timer" style="font-family:'Bungee',cursive;font-size:2.5rem;color:#a855f7;margin:10px 0">…</div>
+    <div id="ad-status" style="color:rgba(255,255,255,.7);font-size:.85rem;font-weight:800;margin-bottom:20px">Connecting...</div>
+    <div id="ad-progress-bar"><div id="ad-progress-fill"></div></div>
+    <button class="main-cta" id="ad-skip-btn" disabled>Please wait...</button>
+</div>
+
+<!-- ── Post-game Stats Modal ────────────────────────────────────────── -->
+<div id="stats-modal" style="display:none">
+    <h1>MISSION REPORT</h1>
+    <span id="stats-daily-badge">📅 DAILY CHALLENGE</span>
+    <div id="stats-score-hero"><span id="stats-score-hero-val">0</span></div>
+    <div id="stats-score-label">FINAL SCORE</div>
+    <div id="stats-newbest">🏆 NEW PERSONAL BEST!</div>
+    <div class="stats-grid stats-grid-minimal">
+        <div class="stat-cell"><span class="stat-val" id="stats-time">0s</span><span class="stat-lbl">Time Survived</span></div>
+        <div class="stat-cell"><span class="stat-val" id="stats-score">0</span><span class="stat-lbl">Personal Best</span></div>
+    </div>
+    <button class="main-cta" id="stats-continue-btn">CONTINUE</button>
+    <button id="stats-share-btn" class="secondary-btn">📤 SHARE RESULT</button>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<!-- ── Bootstrap ────────────────────────────────────────────────────── -->
+<script type="module">
+import { GameEngine }                            from './src/game/engine.js';
+import { THEMES, warmSpriteCache }               from './src/game/renderer.js';
+import { initCommentary, updateLevelUI, updateHealthUI,
+         updateMultiplierHUD, showStatsModal,
+         hideStatsModal }                        from './src/ui/commentary.js';
+import { AdBroker }                              from './src/ui/ads.js';
+import { initAudio, unlockAudio, setMuted, isMuted }          from './src/audio.js';
+import { loadProgress, saveProgress,
+         fetchLeaderboard, fetchFriendsLeaderboard,
+         fetchDailyChallenge, initSaveStatus,
+         startGameSession, getTgUser }           from './src/api/client.js';
+
+// ── Loading helpers ───────────────────────────────────────────────────────────
+const loadingBar    = document.getElementById('loading-bar');
+const loadingStatus = document.getElementById('loading-status');
+const loadingScreen = document.getElementById('loading-screen');
+function setLoad(pct, msg) { loadingBar.style.width = `${pct}%`; loadingStatus.textContent = msg; }
+function hideLoader() { loadingScreen.classList.add('fade-out'); setTimeout(() => { loadingScreen.style.display = 'none'; }, 500); }
+
+// ── Telegram SDK ──────────────────────────────────────────────────────────────
+setLoad(10, 'Connecting to Telegram...');
+const TG = window.Telegram?.WebApp;
+if (TG) {
+    TG.expand();
+    TG.enableClosingConfirmation();
+    TG.setHeaderColor('#0f0f1a');
+    TG.setBackgroundColor('#0f0f1a');
+    TG.BackButton?.onClick?.(() => {
+        if (engine?.active) engine.togglePause();
+        else if (document.getElementById('leaderboard-panel').style.display !== 'none') closeLeaderboard();
+        else if (document.getElementById('stats-modal').style.display !== 'none') { hideStatsModal(); showMenu(); }
+        else if (document.getElementById('revive-screen').style.display !== 'none') triggerGameOver(lastDeathStats, { goToMenu: true });
+    });
+    TG.ready();
+}
+
+// ── Touch lockdown (canvas only — never block UI buttons) ─────────────────────
+const evtOpts = { passive: false };
+function isInteractiveTarget(el) {
+    return el?.closest?.('button, .theme-card, #pause-btn, #mute-btn, #menu, #revive-screen, #pause-menu, #stats-modal, #leaderboard-panel, #tutorial-overlay, #ad-overlay');
+}
+document.addEventListener('touchstart', e => { if (!isInteractiveTarget(e.target)) e.preventDefault(); }, evtOpts);
+document.addEventListener('touchmove',  e => { if (!isInteractiveTarget(e.target)) e.preventDefault(); }, evtOpts);
+document.addEventListener('touchend',   e => { if (!isInteractiveTarget(e.target)) e.preventDefault(); }, evtOpts);
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+// ── Reconnect ─────────────────────────────────────────────────────────────────
+const reconnectBanner = document.getElementById('reconnect-banner');
+window.addEventListener('offline', () => { reconnectBanner.style.display = 'block'; });
+window.addEventListener('online',  () => { reconnectBanner.style.display = 'none'; });
+document.getElementById('reconnect-btn').onclick = async () => {
+    if (navigator.onLine) {
+        reconnectBanner.style.display = 'none';
+        const saved = await loadProgress();
+        bestScore = saved.bestScore; totalXp = saved.totalXp;
+        document.getElementById('best').innerText = `TOP: ${bestScore}`;
+        updateLevelUI(totalXp);
+    }
+};
+
+// ── Init modules ──────────────────────────────────────────────────────────────
+initCommentary(document.getElementById('commentary'));
+initSaveStatus(document.getElementById('save-status'));
+initAudio();
+
+// ── Load player progress ──────────────────────────────────────────────────────
+setLoad(30, 'Fetching pilot data...');
+let { bestScore, totalXp } = await loadProgress();
+document.getElementById('best').innerText = `TOP: ${bestScore}`;
+
+setLoad(55, 'Warming up engines...');
+updateLevelUI(totalXp);
+const tgUser = getTgUser();
+if (tgUser?.first_name) document.getElementById('menu-title').innerText = `HI, ${tgUser.first_name.toUpperCase()}! 👋`;
+
+// ── Engine ────────────────────────────────────────────────────────────────────
+setLoad(75, 'Loading galaxy...');
+const engine = new GameEngine(document.getElementById('gameCanvas'));
+engine.init();
+
+// ── Mute button ───────────────────────────────────────────────────────────────
+const muteBtn = document.getElementById('mute-btn');
+muteBtn.onclick = () => {
+    const nowMuted = !isMuted();
+    setMuted(nowMuted);
+    muteBtn.textContent = nowMuted ? '🔇' : '🔊';
+};
+
+// ── Multiplier HUD ────────────────────────────────────────────────────────────
+engine.addEventListener('multiplier', e => updateMultiplierHUD(e.detail));
+
+// ── Pause ─────────────────────────────────────────────────────────────────────
+engine.addEventListener('pause', e => {
+    const { paused } = e.detail;
+    document.getElementById('pause-menu').style.display = paused ? 'flex' : 'none';
+    document.getElementById('pause-icon').style.display = paused ? 'none' : 'block';
+    document.getElementById('play-icon').style.display  = paused ? 'block' : 'none';
+});
+
+// ── Death → stats → menu ──────────────────────────────────────────────────────
+let lastDeathStats    = null;
+let gameOverInProgress = false;
+
+const OVERLAY_IDS = ['revive-screen', 'pause-menu', 'stats-modal', 'ad-overlay', 'leaderboard-panel'];
+const HUD_IDS     = ['health-ui-container', 'top-header', 'commentary-box'];
+
+function hideAllOverlays() {
+    OVERLAY_IDS.forEach(id => { document.getElementById(id).style.display = 'none'; });
+}
+
+function setGameHUDVisible(visible) {
+    const display = visible ? '' : 'none';
+    HUD_IDS.forEach(id => { document.getElementById(id).style.display = display; });
+}
+
+function resetGameHUD() {
+    document.getElementById('pause-btn').style.display = 'none';
+    document.getElementById('mute-btn').classList.remove('active');
+    document.getElementById('daily-mode-hud').style.display = 'none';
+    document.getElementById('score').innerText = '0';
+    updateMultiplierHUD({ value: 1, burst: false, slow: false });
+    updateHealthUI(3, 3, 0, false, false);
+}
+
+async function refreshDailyMenuInfo() {
+    const el = document.getElementById('daily-info-date');
+    if (!el) return;
+    try {
+        const daily = await fetchDailyChallenge();
+        el.textContent = daily.label;
+    } catch {
+        el.textContent = 'Today';
+    }
+}
+
+engine.addEventListener('died', e => {
+    lastDeathStats = e.detail.stats;
+    document.getElementById('pause-btn').style.display = 'none';
+    document.getElementById('mute-btn').classList.remove('active');
+    if (TG?.BackButton) TG.BackButton.hide();
+
+    if (e.detail.canRevive) {
+        document.getElementById('revive-screen').style.display = 'flex';
+    } else {
+        triggerGameOver(e.detail.stats);
+    }
+});
+
+async function triggerGameOver(stats, { goToMenu = false } = {}) {
+    if (gameOverInProgress) return;
+    gameOverInProgress = true;
+
+    try {
+        const gameStats = stats ?? lastDeathStats ?? engine.getSessionStats();
+        lastDeathStats  = null;
+
+        hideAllOverlays();
+        resetGameHUD();
+        if (TG?.BackButton) TG.BackButton.hide();
+
+        const score      = gameStats.score ?? Math.floor(engine.score);
+        const xpGain     = score;
+        const wasNewBest = score > bestScore;
+        totalXp += xpGain;
+
+        if (goToMenu) {
+            showMenu(score);
+        } else {
+            showStatsModal(gameStats, Math.max(bestScore, score), wasNewBest);
+            if (TG?.BackButton) TG.BackButton.show();
+        }
+
+        const saved = await saveProgress({ score, xp: totalXp });
+        bestScore   = saved.bestScore;
+        totalXp     = saved.totalXp;
+        document.getElementById('best').innerText = `TOP: ${bestScore}`;
+        updateLevelUI(totalXp);
+        if (!goToMenu) {
+            document.getElementById('stats-newbest').style.display = wasNewBest ? 'block' : 'none';
+        }
+    } catch (err) {
+        console.error('[GameOver] Failed:', err);
+        showMenu(Math.floor(engine.score));
+    } finally {
+        gameOverInProgress = false;
+    }
+}
+
+function showMenu(score) {
+    hideAllOverlays();
+    resetGameHUD();
+    setGameHUDVisible(false);
+    if (score !== undefined) document.getElementById('final-stats').innerText = score > 0 ? `SCORE: ${score}` : '';
+    if (tgUser?.first_name) document.getElementById('menu-title').innerText = `HI, ${tgUser.first_name.toUpperCase()}! 👋`;
+    else document.getElementById('menu-title').innerText = 'ORBIT ESCAPE';
+    document.getElementById('menu').style.display = 'flex';
+    if (TG?.BackButton) TG.BackButton.hide();
+    refreshDailyMenuInfo();
+}
+
+// ── Stats modal buttons ───────────────────────────────────────────────────────
+document.getElementById('stats-continue-btn').onclick = () => {
+    const score = parseInt(document.getElementById('stats-score-hero-val').textContent, 10) || 0;
+    hideStatsModal();
+    showMenu(score);
+};
+
+document.getElementById('stats-share-btn').onclick = () => {
+    const score = parseInt(document.getElementById('stats-score-hero-val').textContent, 10) || 0;
+    const time  = document.getElementById('stats-time').textContent;
+    const text  = `I scored ${score} in ${time} on Orbit Escape! 🛸 Can you beat me?`;
+    if (TG?.showShareButton) {
+        const botName = window.__BOT_USERNAME__ || 'OrbitEscapeBot';
+        TG.showShareButton({ text, url: `https://t.me/${botName}/play` });
+    } else {
+        navigator.clipboard?.writeText(text).then(() => alert('Copied to clipboard!'));
+    }
+};
+
+// ── Theme selector ────────────────────────────────────────────────────────────
+function buildThemeCards() {
+    const sel = document.getElementById('theme-selector');
+    sel.innerHTML = '';
+    Object.values(THEMES).forEach(t => {
+        const card = document.createElement('div');
+        card.className = `theme-card ${t.id === engine.theme.id ? 'active' : ''}`;
+        card.setAttribute('data-theme', t.id);
+        const cv = document.createElement('canvas');
+        cv.width = cv.height = 60;
+        t.render(cv.getContext('2d'), 30, 30, 20);
+        const lbl = document.createElement('span');
+        lbl.innerText = t.name;
+        lbl.style.cssText = 'font-weight:800;font-size:.6rem';
+        card.append(cv, lbl);
+        card.onclick = () => {
+            engine.setTheme(t.id);
+            document.querySelectorAll('.theme-card').forEach(c => c.classList.remove('active'));
+            card.classList.add('active');
+        };
+        sel.appendChild(card);
+    });
+}
+buildThemeCards();
+
+// ── Leaderboard (Global / Friends / Daily tabs) ───────────────────────────────
+let activeLbTab = 'global';
+
+async function openLeaderboard(tab = 'global') {
+    activeLbTab = tab;
+    document.getElementById('menu').style.display              = 'none';
+    document.getElementById('leaderboard-panel').style.display = 'flex';
+    if (TG) TG.BackButton.show();
+
+    document.querySelectorAll('.lb-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(`lb-${tab}-tab`).classList.add('active');
+
+    const list = document.getElementById('leaderboard-list');
+    list.innerHTML = '<div style="color:#666;font-weight:800;padding:20px">Loading...</div>';
+
+    let board = [];
+    const myId = tgUser?.id;
+
+    if (tab === 'global') {
+        board = await fetchLeaderboard(15);
+    } else if (tab === 'friends') {
+        // In a real implementation, friendIds would come from a stored list.
+        // For now we show a helpful message if no TG context.
+        if (!myId) {
+            list.innerHTML = '<div style="color:#aaa;font-weight:800;padding:20px">Open inside Telegram to see Friends leaderboard.</div>';
+            return;
+        }
+        // Pass own ID so your own score always shows
+        board = await fetchFriendsLeaderboard([myId]);
+        if (board.length === 0) {
+            list.innerHTML = '<div style="color:#aaa;font-weight:800;padding:20px">Share the game with friends to build this board! 🤝</div>';
+            return;
+        }
+    } else if (tab === 'daily') {
+        // Daily board filtered by is_daily flag — reuse global for now
+        board = await fetchLeaderboard(15);
+    }
+
+    list.innerHTML = board.length
+        ? board.map(e => `
+            <div class="leaderboard-row ${e.userId === myId ? 'lb-me' : ''}">
+                <span class="lb-rank">#${e.rank}</span>
+                <span class="lb-name">${e.name}${e.userId === myId ? ' 👈' : ''}</span>
+                <span class="lb-score">${e.bestScore}</span>
+            </div>`).join('')
+        : '<div style="color:#aaa;font-weight:800;padding:20px">No scores yet. Be the first! 🚀</div>';
+}
+
+function closeLeaderboard() {
+    document.getElementById('leaderboard-panel').style.display = 'none';
+    document.getElementById('menu').style.display              = 'flex';
+    if (TG) TG.BackButton.hide();
+}
+
+document.getElementById('leaderboard-btn').onclick = async () => { await unlockAudio(); openLeaderboard('global'); };
+document.getElementById('leaderboard-close-btn').onclick = closeLeaderboard;
+document.getElementById('lb-global-tab').onclick  = () => openLeaderboard('global');
+document.getElementById('lb-friends-tab').onclick = () => openLeaderboard('friends');
+document.getElementById('lb-daily-tab').onclick   = () => openLeaderboard('daily');
+
+// ── Start game ────────────────────────────────────────────────────────────────
+async function launchGame(isDaily = false) {
+    await unlockAudio();
+
+    hideAllOverlays();
+    lastDeathStats = null;
+    setGameHUDVisible(true);
+    document.getElementById('menu').style.display      = 'none';
+    document.getElementById('final-stats').innerText   = '';
+    document.getElementById('pause-btn').style.display = 'flex';
+    document.getElementById('mute-btn').classList.add('active');
+    if (TG?.BackButton) TG.BackButton.show();
+
+    await startGameSession();
+
+    if (isDaily) {
+        const daily = await fetchDailyChallenge();
+        document.getElementById('daily-mode-date').textContent = daily.label;
+        document.getElementById('daily-mode-hud').style.display = 'flex';
+        engine.startDailyChallenge(daily.seed);
+    } else {
+        document.getElementById('daily-mode-hud').style.display = 'none';
+        engine.startGame();
+    }
+}
+
+document.getElementById('start-btn').onclick  = () => launchGame(false);
+document.getElementById('daily-btn').onclick = () => launchGame(true);
+
+// ── Revive ────────────────────────────────────────────────────────────────────
+document.getElementById('revive-btn').onclick = async () => {
+    document.getElementById('revive-screen').style.display = 'none';
+    try {
+        await AdBroker.show();
+        document.getElementById('pause-btn').style.display = 'flex';
+        document.getElementById('mute-btn').classList.add('active');
+        if (TG?.BackButton) TG.BackButton.show();
+        engine.revive();
+    } catch { await triggerGameOver(lastDeathStats); }
+};
+document.getElementById('skip-revive').onclick = () => triggerGameOver(lastDeathStats, { goToMenu: true });
+
+// ── Pause controls ────────────────────────────────────────────────────────────
+document.getElementById('pause-btn').onclick  = e => { e.stopPropagation(); engine.togglePause(); };
+document.getElementById('resume-btn').onclick = () => engine.togglePause();
+document.getElementById('quit-btn').onclick   = () => {
+    engine.active = false;
+    engine.paused = false;
+    triggerGameOver(engine.getSessionStats(), { goToMenu: true });
+};
+
+// ── Tutorial ──────────────────────────────────────────────────────────────────
+let tutStep = 1;
+document.querySelectorAll('.next-tutorial').forEach(btn => {
+    btn.onclick = () => {
+        document.querySelector(`.tutorial-step[data-step="${tutStep}"]`).classList.remove('active');
+        tutStep++;
+        document.querySelector(`.tutorial-step[data-step="${tutStep}"]`)?.classList.add('active');
+    };
+});
+document.getElementById('close-tutorial').onclick = () => {
+    document.getElementById('tutorial-overlay').style.display = 'none';
+    showMenu();
+    tutStep = 1;
+    document.querySelectorAll('.tutorial-step').forEach(s => s.classList.remove('active'));
+    document.querySelector('.tutorial-step[data-step="1"]')?.classList.add('active');
+};
+
+// ── Global tap → reverse orbit ────────────────────────────────────────────────
+window.onpointerdown = e => {
+    if (e.target.tagName !== 'BUTTON'
+        && !e.target.closest('.theme-card')
+        && !e.target.closest('#pause-btn')
+        && !e.target.closest('#mute-btn')
+        && !e.target.closest('#ad-overlay')
+        && engine.active && !engine.paused) {
+        engine.reverseDirection();
+    }
+};
+
+// ── Reveal ────────────────────────────────────────────────────────────────────
+setLoad(100, 'Ready!');
+setTimeout(() => {
+    hideLoader();
+    try {
+        setGameHUDVisible(false);
+        if (!localStorage.getItem('orbit_tutorial_done')) {
+            localStorage.setItem('orbit_tutorial_done', '1');
+            document.getElementById('tutorial-overlay').style.display = 'flex';
+        } else {
+            showMenu();
+        }
+    } catch (err) {
+        console.error('[Boot] UI init failed:', err);
+        document.getElementById('menu').style.display = 'flex';
+    }
+}, 400);
+</script>
+</body>
+</html>

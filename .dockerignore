@@ -1,0 +1,21 @@
+# Dependencies — reinstalled by npm ci inside the image
+node_modules/
+
+# Secrets — injected as env vars at runtime, never baked in
+.env
+
+# Logs — written at runtime
+logs/
+*.log
+
+# Dev tools
+.git/
+.gitignore
+*.md
+ecosystem.config.js
+
+# OS / IDE noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

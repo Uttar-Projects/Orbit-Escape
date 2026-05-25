@@ -1,0 +1,20 @@
+# ============================================================
+# Railway Deployment Configuration
+# https://railway.app
+# ============================================================
+# Deploy: connect your GitHub repo to Railway, set env vars
+# in the Railway dashboard, and it auto-deploys on every push.
+# ============================================================
+
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "npm run start:prod"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+[[services]]
+name = "orbit-escape-tma"
