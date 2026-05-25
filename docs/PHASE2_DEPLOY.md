@@ -1,6 +1,8 @@
-# Phase 2 — Deploy to Railway (HTTPS + PostgreSQL)
+# Phase 2 — Deploy to Render (HTTPS + PostgreSQL)
 
-**Goal:** Live URL like `https://orbit-escape-production.up.railway.app` with database `ok` on `/health`.
+**Repo:** [github.com/Uttar-Projects/Orbit-Escape](https://github.com/Uttar-Projects/Orbit-Escape)
+
+**Goal:** Live URL like `https://orbit-escape.onrender.com` with database `ok` on `/health`.
 
 **Time:** ~20–30 minutes.
 
@@ -9,87 +11,102 @@
 ## Before you start
 
 - [x] Phase 1 done (bot, Adsgram block `32481`)
-- [ ] GitHub account (recommended) or [Railway CLI](https://docs.railway.com/guides/cli)
-- [ ] New **production** `SESSION_SECRET` (generate below)
-- [ ] Bot token in `.env` (revoke old token if it was leaked in chat)
-
-Generate `SESSION_SECRET`:
+- [x] Code on GitHub
+- [ ] [Render](https://render.com) account (sign in with GitHub)
+- [ ] Production `SESSION_SECRET` (generate below)
+- [ ] Bot token from BotFather (revoke old token if leaked in chat)
 
 ```powershell
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-Copy the output — use **only** in Railway variables, not in git.
+Save the output for Render **only** — never commit it.
 
 ---
 
-## Step 1 — Push code to GitHub
+## Option A — Blueprint (recommended)
 
-1. Create a repo on GitHub (e.g. `orbit-escape-tma`).
-2. In the project folder:
+Uses `render.yaml` in the repo ([Blueprint spec](https://render.com/docs/blueprint-spec)).
 
-```powershell
-cd "c:\Users\USER\Desktop\New folder\orbit-escape-tma-v4\orbit-escape-tma-v4"
-git init
-git add .
-git commit -m "Orbit Escape TMA — initial deploy"
-git remote add origin https://github.com/YOUR_USER/orbit-escape-tma.git
-git push -u origin main
-```
-
-Skip if the repo is already on GitHub.
-
----
-
-## Step 2 — Create Railway project
-
-1. Go to [railway.app](https://railway.app) → **Login** (GitHub).
-2. **New Project** → **Deploy from GitHub repo** → select your repo.
-3. Railway detects Node and uses `railway.toml` + `npm run start:prod` (runs DB migrate then server).
-
----
-
-## Step 3 — Add PostgreSQL
-
-1. In the project → **+ New** → **Database** → **PostgreSQL**.
-2. Click the Postgres service → **Variables** → copy `DATABASE_URL` (or use **Connect** → **Postgres connection URL**).
-3. On your **app service** (not Postgres) → **Variables** → add:
+1. Go to [dashboard.render.com](https://dashboard.render.com) → **New +** → **Blueprint**.
+2. Connect **Uttar-Projects/Orbit-Escape** → approve access.
+3. Render reads `render.yaml` and creates:
+   - **Web service** `orbit-escape`
+   - **PostgreSQL** `orbit-escape-db`
+4. When prompted, enter **secret** env vars:
 
 | Variable | Value |
 |----------|--------|
-| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` or paste from Postgres service |
-| `TELEGRAM_BOT_TOKEN` | From BotFather (new token if revoked) |
-| `NODE_ENV` | `production` |
+| `TELEGRAM_BOT_TOKEN` | From BotFather |
 | `SESSION_SECRET` | Your generated 64-char hex |
-| `ALLOWED_ORIGINS` | Leave empty until Step 5 — then set your Railway URL |
+| `ALLOWED_ORIGINS` | Leave empty for first deploy — add in Step 3 |
+
+5. Click **Apply** / **Create** and wait for deploy (~5–10 min first time).
+
+---
+
+## Option B — Manual setup
+
+### 1. PostgreSQL
+
+1. **New +** → **PostgreSQL**
+2. Name: `orbit-escape-db` · Plan: **Free**
+3. Create → copy **Internal Database URL** (or External if needed)
+
+### 2. Web Service
+
+1. **New +** → **Web Service** → connect **Orbit-Escape** repo
+2. Settings:
+
+| Setting | Value |
+|---------|--------|
+| Name | `orbit-escape` |
+| Region | Oregon (or nearest) |
+| Branch | `main` |
+| Runtime | **Node** |
+| Build Command | `npm ci` |
+| Start Command | `npm run start:prod` |
+| Plan | **Free** |
+
+3. **Advanced** → Health Check Path: `/health`
+
+### 3. Environment variables (Web Service → Environment)
+
+| Key | Value |
+|-----|--------|
+| `NODE_ENV` | `production` |
+| `DATABASE_URL` | Paste Postgres connection string |
+| `TELEGRAM_BOT_TOKEN` | BotFather token |
+| `SESSION_SECRET` | Generated hex |
+| `ALLOWED_ORIGINS` | Your Render URL (Step below) |
 | `LOG_LEVEL` | `info` |
 
-`PORT` is set automatically by Railway — do not hardcode unless needed.
+`PORT` is set automatically by Render — do not override.
 
-4. **Redeploy** the app after adding variables.
-
----
-
-## Step 4 — Public HTTPS domain
-
-1. Open your **app** service (Node), not Postgres.
-2. **Settings** → **Networking** → **Generate Domain**.
-3. Copy the URL, e.g. `https://orbit-escape-production.up.railway.app` (no trailing `/`).
-
-4. Add variable on the app service:
-
-| Variable | Value |
-|----------|--------|
-| `ALLOWED_ORIGINS` | `https://orbit-escape-production.up.railway.app` (your real URL) |
-
-5. **Redeploy** again.
+4. **Create Web Service**
 
 ---
 
-## Step 5 — Verify deploy
+## Step 3 — Get your public URL
+
+1. Open web service **orbit-escape** → copy URL, e.g.  
+   `https://orbit-escape.onrender.com` (no trailing `/`)
+2. **Environment** → set / update:
+
+```
+ALLOWED_ORIGINS=https://orbit-escape.onrender.com
+```
+
+3. **Manual Deploy** → **Deploy latest commit** (or wait for auto-deploy).
+
+> **Free plan:** Service sleeps after ~15 min idle. First open may take 30–60s to wake.
+
+---
+
+## Step 4 — Verify deploy
 
 ```powershell
-npm run phase2:verify -- https://YOUR-RAILWAY-URL.up.railway.app
+npm run phase2:verify -- https://orbit-escape.onrender.com
 ```
 
 Expected:
@@ -98,37 +115,35 @@ Expected:
 - `"ok": true`
 - `"database": { "status": "ok" }`
 
-Open in browser: `https://YOUR-URL/health`
-
-Play the game: `https://YOUR-URL/` (browser test; Telegram needs Step 6).
+Browser: `https://YOUR-URL.onrender.com/health`
 
 ---
 
-## Step 6 — Update Telegram + Adsgram (same URL everywhere)
+## Step 5 — Update Telegram + Adsgram
 
 ### BotFather
 
 1. [@BotFather](https://t.me/BotFather) → `/myapps` → **Orbit Escape**
-2. **Edit Web App URL** → `https://YOUR-RAILWAY-URL.up.railway.app`
-3. Direct link stays: `https://t.me/OrbitEscapeGameBot/orbitescape`
+2. **Edit Web App URL** → `https://YOUR-URL.onrender.com`
+3. Direct link unchanged: `https://t.me/OrbitEscapeGameBot/orbitescape`
 
 ### Adsgram ([partner.adsgram.ai](https://partner.adsgram.ai))
 
-On platform **Orbit Escape** (ID 30344):
+Platform **Orbit Escape**:
 
-| Field | New value |
-|--------|-----------|
-| **App url** | `https://YOUR-RAILWAY-URL.up.railway.app` |
-| **Reward URL** (block 32481) | `https://YOUR-RAILWAY-URL.up.railway.app/api/adsgram/reward?userid=[userId]` |
-| **Test platform** | Uncheck when using production URL |
+| Field | Value |
+|--------|--------|
+| **App url** | `https://YOUR-URL.onrender.com` |
+| **Reward URL** (block 32481) | `https://YOUR-URL.onrender.com/api/adsgram/reward?userid=[userId]` |
+| **Test platform** | Uncheck for production |
 
 ---
 
-## Step 7 — Test in Telegram
+## Step 6 — Test in Telegram (phone)
 
-1. Open [t.me/OrbitEscapeGameBot/orbitescape](https://t.me/OrbitEscapeGameBot/orbitescape) on your **phone**.
-2. Scores should sync (not only “Saved locally”).
-3. Die → **Watch ad** → real Adsgram ad (not 5s stub).
+1. [t.me/OrbitEscapeGameBot/orbitescape](https://t.me/OrbitEscapeGameBot/orbitescape)
+2. Scores sync to server (“✓ Saved”)
+3. Die → **Watch ad** → Adsgram rewarded ad
 
 ---
 
@@ -136,29 +151,27 @@ On platform **Orbit Escape** (ID 30344):
 
 | Problem | Fix |
 |---------|-----|
-| `/health` 503, database error | Check `DATABASE_URL` on **app** service; redeploy; logs for migrate errors |
-| App crashes on start | Railway **Deploy Logs** — missing `TELEGRAM_BOT_TOKEN` or `SESSION_SECRET` |
-| CORS errors in Telegram | `ALLOWED_ORIGINS` must match Railway URL exactly (https, no trailing slash) |
-| Migrate fails `gen_random_uuid` | Railway Postgres includes extension; redeploy with `start:prod` |
-| Ads don’t show | Open inside Telegram; block moderation; test platform off for prod URL |
+| Build fails | **Logs** → check `npm ci`; Node 18+ in Render settings |
+| `/health` 503 | Wrong `DATABASE_URL`; run **Shell** → `npm run db:migrate` |
+| Crash on start | Missing `TELEGRAM_BOT_TOKEN` or `SESSION_SECRET` in env |
+| CORS in Telegram | `ALLOWED_ORIGINS` = exact Render URL (https, no `/` at end) |
+| Slow first load | Free tier cold start — normal |
+| Migrate error | Render Shell: `npm run db:migrate` |
 
 ---
 
 ## Phase 2 complete checklist
 
-- [ ] Railway app + Postgres running
+- [ ] Render web + Postgres running
 - [ ] `npm run phase2:verify` passes
-- [ ] BotFather Web App URL = Railway URL
+- [ ] BotFather Web App URL = Render URL
 - [ ] Adsgram App url + Reward URL updated
-- [ ] Game opens in Telegram and saves scores
+- [ ] Game works in Telegram on phone
 
-**Next:** Phase 3 — double-check all env vars; Phase 7 — ad testing on device.
+**Next:** Phase 3 — env audit; optional custom domain on Render.
 
 ---
 
-## Alternative: Render
+## Alternative: Railway
 
-1. [render.com](https://render.com) → **New Web Service** → connect repo.
-2. **Build:** `npm ci` · **Start:** `npm run start:prod`
-3. Add **PostgreSQL** addon → paste `DATABASE_URL`.
-4. Same env vars as Railway table above.
+See `railway.toml` and [Railway docs](https://railway.app) if you prefer Railway instead of Render.

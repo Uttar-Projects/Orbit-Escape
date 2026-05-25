@@ -21,9 +21,9 @@ Use this list in order. Check items off as you go.
 
 ## Phase 2 — Hosting & database
 
-**Guide:** [docs/PHASE2_DEPLOY.md](docs/PHASE2_DEPLOY.md) · **Verify:** `npm run phase2:verify -- https://YOUR-URL`
+**Guide:** [docs/PHASE2_DEPLOY.md](docs/PHASE2_DEPLOY.md) (Render) · **Blueprint:** `render.yaml` · **Verify:** `npm run phase2:verify -- https://YOUR-URL.onrender.com`
 
-- [ ] Choose a host with **HTTPS** (Railway, Render, Fly.io, VPS + nginx, etc.)
+- [ ] Deploy on **Render** ([Blueprint](https://dashboard.render.com) + `render.yaml`) or manual web service + Postgres
 - [ ] Create a **PostgreSQL** database (Railway/Supabase/Neon, etc.)
 - [ ] Copy `DATABASE_URL` into production env vars
 - [ ] Deploy the Node app (`npm start` → `node server.js`)
@@ -32,7 +32,7 @@ Use this list in order. Check items off as you go.
   ```bash
   npm run db:migrate
   ```
-- [ ] Confirm health endpoint: `GET https://YOUR_DOMAIN/health` → `"ok": true` and database `"status": "ok"`
+- [ ] Confirm health endpoint: `GET https://YOUR-URL.onrender.com/health` → `"ok": true` and database `"status": "ok"`
 
 ---
 
@@ -46,7 +46,7 @@ Set these in your host dashboard (use `.env.production.template` as a guide).
 | `NODE_ENV` | Yes | `production` |
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
 | `SESSION_SECRET` | Yes | Generate: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` — **do not** use dev default |
-| `ALLOWED_ORIGINS` | Yes | Your HTTPS URL, no trailing slash (e.g. `https://orbit-escape.up.railway.app`) |
+| `ALLOWED_ORIGINS` | Yes | Your HTTPS URL, no trailing slash (e.g. `https://orbit-escape.onrender.com`) |
 | `PORT` | Usually auto | Host often sets this |
 | `RATE_LIMIT_MAX` | Optional | Default `60` |
 | `MAX_SCORE_PER_SECOND` | Optional | Default `2.0` |
