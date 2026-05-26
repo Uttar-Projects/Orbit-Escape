@@ -1,5 +1,7 @@
 # Orbit Escape — Full Launch Checklist (TMA + Ads)
 
+**→ Short action list:** [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md) (start here if ~85% done)
+
 Use this list in order. Check items off as you go.  
 **Basic launch** = playable Mini App with cloud saves. **Full launch** = everything below, including real rewarded ads.
 

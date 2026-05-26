@@ -8,6 +8,9 @@
     --health-yellow: #fbbf24;
     --health-red:    #ef4444;
     --xp-purple:     #a855f7;
+    --app-scale:     1;
+    --app-design-w:  100%;
+    --app-design-h:  100dvh;
 }
 
 /* ── Reset / Anti-scroll ─────────────────────────────────────── */
@@ -21,12 +24,34 @@ body {
     font-family: 'Fredoka', sans-serif;
     color: white;
     user-select: none;
-    touch-action: none;
+    touch-action: manipulation;
     -webkit-touch-callout: none;
     -webkit-user-select: none;
     -webkit-overflow-scrolling: auto;
 }
-canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+
+/* Scaled stage — mobile matches “desktop site on phone” density */
+#app-root {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: var(--app-design-w);
+    height: var(--app-design-h);
+    overflow: hidden;
+    transform-origin: top center;
+}
+
+html.mobile-scaled #app-root {
+    left: 50%;
+    transform: translateX(-50%) scale(var(--app-scale));
+}
+
+canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: manipulation;
+}
 
 /* ── HUD ─────────────────────────────────────────────────────── */
 #health-ui-container {
@@ -204,12 +229,12 @@ canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
     position: absolute; top: 50%; left: 50%;
     transform: translate(-50%, -50%);
     text-align: center; background: #fff;
-    padding: 25px; border: 5px solid #000;
-    z-index: 200; width: 90%; max-width: 400px;
-    border-radius: 30px; display: flex; flex-direction: column;
-    box-shadow: 8px 8px 0px rgba(0,0,0,0.2); box-sizing: border-box;
+    padding: 20px; border: 4px solid #000;
+    z-index: 200; width: 88%; max-width: 340px;
+    border-radius: 24px; display: flex; flex-direction: column;
+    box-shadow: 6px 6px 0px rgba(0,0,0,0.2); box-sizing: border-box;
 }
-h1 { font-family: 'Bungee', cursive; color: #000; margin: 0 0 10px 0; font-size: 1.8rem; }
+h1 { font-family: 'Bungee', cursive; color: #000; margin: 0 0 10px 0; font-size: 1.45rem; }
 
 /* ── Level / XP ──────────────────────────────────────────────── */
 #level-section {
@@ -383,3 +408,29 @@ button.text-btn {
 .loading-bar-wrap { width: 200px; height: 8px; background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.2); border-radius: 10px; overflow: hidden; }
 .loading-bar-fill { height: 100%; background: #a855f7; width: 0%; transition: width 0.3s ease; border-radius: 10px; }
 .loading-status { font-size: 0.75rem; color: rgba(255,255,255,0.4); font-weight: 700; margin-top: 10px; letter-spacing: 1px; }
+
+/* ── Mobile-scaled UI tweaks (inside 480px design frame) ─────── */
+html.mobile-scaled #health-ui-container { top: 12px; left: 12px; }
+html.mobile-scaled #top-header { top: 10px; }
+html.mobile-scaled #score { font-size: 2rem; -webkit-text-stroke: 1.5px #000; }
+html.mobile-scaled #best { font-size: 0.7rem; }
+html.mobile-scaled #health-container { width: 90px; height: 8px; }
+html.mobile-scaled .label { font-size: 0.5rem; }
+html.mobile-scaled #commentary-box { top: 12px; right: 12px; max-width: 130px; }
+html.mobile-scaled #commentary { font-size: 0.62rem; padding: 6px 8px; }
+html.mobile-scaled #multiplier-hud { font-size: 0.75rem; padding: 4px 12px; bottom: 52px; }
+html.mobile-scaled #daily-mode-hud { top: 56px; padding: 4px 10px; }
+html.mobile-scaled #pause-btn,
+html.mobile-scaled #mute-btn { width: 30px; height: 30px; bottom: 12px; }
+html.mobile-scaled #mute-btn { right: 50px; }
+html.mobile-scaled #pause-btn { left: 12px; }
+html.mobile-scaled #pause-btn svg { width: 14px; height: 14px; }
+html.mobile-scaled #save-status { font-size: 0.5rem; bottom: 12px; right: 12px; }
+html.mobile-scaled button.main-cta { font-size: 1rem; padding: 11px; }
+html.mobile-scaled button.secondary-btn { font-size: 0.82rem; padding: 8px; }
+html.mobile-scaled .theme-selector { gap: 6px; margin-bottom: 12px; }
+html.mobile-scaled .theme-card { padding: 6px 2px; border-radius: 12px; }
+html.mobile-scaled .theme-card canvas { width: 40px; height: 40px; }
+html.mobile-scaled .tutorial-icon { font-size: 2.5rem; }
+html.mobile-scaled .tutorial-text { font-size: 0.85rem; }
+html.mobile-scaled #stats-score-hero { font-size: 2.5rem; -webkit-text-stroke: 2px #000; }

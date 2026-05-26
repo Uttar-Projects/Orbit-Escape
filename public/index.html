@@ -18,6 +18,8 @@
 </head>
 <body>
 
+<div id="app-root">
+
 <!-- ── Loading ──────────────────────────────────────────────────────── -->
 <div id="loading-screen">
     <div class="loading-planet"></div>
@@ -167,8 +169,11 @@
 
 <canvas id="gameCanvas"></canvas>
 
+</div><!-- #app-root -->
+
 <!-- ── Bootstrap ────────────────────────────────────────────────────── -->
 <script type="module">
+import { initViewportScale }                     from './src/viewport.js';
 import { GameEngine }                            from './src/game/engine.js';
 import { THEMES, warmSpriteCache }               from './src/game/renderer.js';
 import { initCommentary, updateLevelUI, updateHealthUI,
@@ -205,15 +210,35 @@ if (TG) {
     TG.ready();
 }
 
-// ── Touch lockdown (canvas only — never block UI buttons) ─────────────────────
-const evtOpts = { passive: false };
+// ── Mobile viewport scale (480px design frame) ───────────────────────────────
+initViewportScale();
+
+// ── Prevent scroll/zoom; do NOT block canvas taps on touchend ───────────────
 function isInteractiveTarget(el) {
-    return el?.closest?.('button, .theme-card, #pause-btn, #mute-btn, #menu, #revive-screen, #pause-menu, #stats-modal, #leaderboard-panel, #tutorial-overlay, #ad-overlay');
+    return el?.closest?.('button, .theme-card, #pause-btn, #mute-btn, #menu, #revive-screen, #pause-menu, #stats-modal, #leaderboard-panel, #tutorial-overlay, #ad-overlay, #reconnect-banner, #loading-screen');
 }
-document.addEventListener('touchstart', e => { if (!isInteractiveTarget(e.target)) e.preventDefault(); }, evtOpts);
-document.addEventListener('touchmove',  e => { if (!isInteractiveTarget(e.target)) e.preventDefault(); }, evtOpts);
-document.addEventListener('touchend',   e => { if (!isInteractiveTarget(e.target)) e.preventDefault(); }, evtOpts);
+document.addEventListener('touchmove', e => {
+    if (!isInteractiveTarget(e.target)) e.preventDefault();
+}, { passive: false });
 document.addEventListener('contextmenu', e => e.preventDefault());
+
+function bindGameTap(root) {
+    let lastTap = 0;
+    const onTap = (e) => {
+        if (!engine?.active || engine.paused) return;
+        if (isInteractiveTarget(e.target)) return;
+        const now = Date.now();
+        if (now - lastTap < 280) return;
+        lastTap = now;
+        engine.reverseDirection();
+        if (e.cancelable) e.preventDefault();
+    };
+    root.addEventListener('touchstart', onTap, { passive: false });
+    root.addEventListener('pointerdown', e => {
+        if (e.pointerType === 'touch') return;
+        onTap(e);
+    });
+}
 
 // ── Reconnect ─────────────────────────────────────────────────────────────────
 const reconnectBanner = document.getElementById('reconnect-banner');
@@ -248,6 +273,7 @@ if (tgUser?.first_name) document.getElementById('menu-title').innerText = `HI, $
 setLoad(75, 'Loading galaxy...');
 const engine = new GameEngine(document.getElementById('gameCanvas'));
 engine.init();
+bindGameTap(document.getElementById('app-root'));
 
 // ── Mute button ───────────────────────────────────────────────────────────────
 const muteBtn = document.getElementById('mute-btn');
@@ -541,17 +567,6 @@ document.getElementById('close-tutorial').onclick = () => {
     document.querySelector('.tutorial-step[data-step="1"]')?.classList.add('active');
 };
 
-// ── Global tap → reverse orbit ────────────────────────────────────────────────
-window.onpointerdown = e => {
-    if (e.target.tagName !== 'BUTTON'
-        && !e.target.closest('.theme-card')
-        && !e.target.closest('#pause-btn')
-        && !e.target.closest('#mute-btn')
-        && !e.target.closest('#ad-overlay')
-        && engine.active && !engine.paused) {
-        engine.reverseDirection();
-    }
-};
 
 // ── Reveal ────────────────────────────────────────────────────────────────────
 setLoad(100, 'Ready!');

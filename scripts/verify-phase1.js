@@ -6,7 +6,11 @@
  * Run: npm run phase1:verify
  */
 
-require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+// override: true — .env wins over stale shell vars (e.g. TELEGRAM_BOT_TOKEN=test)
+require('dotenv').config({
+    path:     require('path').join(__dirname, '..', '.env'),
+    override: true
+});
 
 const fs   = require('fs');
 const path = require('path');
@@ -60,20 +64,25 @@ function checkIndexHtml() {
     }
 }
 
+function readTokenFromEnvFile() {
+    const raw = fs.readFileSync(ENV_PATH, 'utf8');
+    const m   = raw.match(/^TELEGRAM_BOT_TOKEN=(.+)$/m);
+    return m?.[1]?.trim().replace(/^["']|["']$/g, '') || null;
+}
+
 function checkEnvFile() {
     if (!fs.existsSync(ENV_PATH)) {
         fail('.env missing — copy .env.example to .env');
         return null;
     }
     ok('.env file exists');
-    return process.env.TELEGRAM_BOT_TOKEN?.trim() || null;
+    return readTokenFromEnvFile();
 }
 
 async function main() {
     console.log('\n=== Phase 1 verification — Orbit Escape TMA ===\n');
 
-    checkEnvFile();
-    const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
+    const token = checkEnvFile();
 
     if (!token) {
         fail('TELEGRAM_BOT_TOKEN empty in .env');

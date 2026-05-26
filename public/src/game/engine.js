@@ -18,6 +18,7 @@
  */
 
 import { THEMES, getObstacleSprite, warmSpriteCache, drawShip, drawPowerup } from './renderer.js';
+import { getDesignSize } from '../viewport.js';
 import { log, COMMENTS, updateHealthUI }    from '../ui/commentary.js';
 import { playTap, playHit, playNearMiss,
          playDeath, playPickup, playWaveClear,
@@ -122,8 +123,13 @@ export class GameEngine extends EventTarget {
     }
 
     _handleResize() {
-        this.w  = this.canvas.width  = window.innerWidth;
-        this.h  = this.canvas.height = window.innerHeight;
+        const { width, height } = getDesignSize();
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        this.w  = width;
+        this.h  = height;
+        this.canvas.width  = Math.round(width * dpr);
+        this.canvas.height = Math.round(height * dpr);
+        this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         this.cx = this.w / 2;
         this.cy = this.h / 2;
         const m = Math.min(this.w, this.h);
