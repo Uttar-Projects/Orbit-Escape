@@ -68,6 +68,13 @@
     <div id="commentary">READY FOR TAKEOFF! 👨‍🚀</div>
 </div>
 
+<canvas id="gameCanvas"></canvas>
+
+</div><!-- #app-root -->
+
+<!-- Menus outside scaled #app-root — fixes mobile Chrome touch on buttons -->
+<div id="ui-layer">
+
 <!-- ── Tutorial ─────────────────────────────────────────────────────── -->
 <div id="tutorial-overlay" style="display:none">
     <h1>HOW TO PLAY</h1>
@@ -110,9 +117,9 @@
         <div id="daily-info-date" class="daily-info-date">Loading…</div>
         <p class="daily-info-desc">Same obstacle pattern for every pilot today. Compete on equal footing!</p>
     </div>
-    <button type="button" class="main-cta" id="start-btn">🚀 LAUNCH!</button>
-    <button type="button" class="main-cta daily" id="daily-btn" style="margin-top:10px">📅 DAILY CHALLENGE</button>
-    <button type="button" class="secondary-btn" id="leaderboard-btn">🏆 LEADERBOARD</button>
+    <div role="button" tabindex="0" class="main-cta action-btn" id="start-btn">🚀 LAUNCH!</div>
+    <div role="button" tabindex="0" class="main-cta daily action-btn" id="daily-btn" style="margin-top:10px">📅 DAILY CHALLENGE</div>
+    <div role="button" tabindex="0" class="secondary-btn action-btn" id="leaderboard-btn">🏆 LEADERBOARD</div>
 </div>
 
 <!-- ── Leaderboard ──────────────────────────────────────────────────── -->
@@ -167,9 +174,7 @@
     <button id="stats-share-btn" class="secondary-btn">📤 SHARE RESULT</button>
 </div>
 
-<canvas id="gameCanvas"></canvas>
-
-</div><!-- #app-root -->
+</div><!-- #ui-layer -->
 
 <!-- ── Bootstrap ────────────────────────────────────────────────────── -->
 <script type="module">
@@ -215,7 +220,7 @@ initViewportScale();
 
 // ── Prevent scroll/zoom; do NOT block canvas taps on touchend ───────────────
 function isInteractiveTarget(el) {
-    return el?.closest?.('button, .theme-card, #pause-btn, #mute-btn, #menu, #revive-screen, #pause-menu, #stats-modal, #leaderboard-panel, #tutorial-overlay, #ad-overlay, #reconnect-banner, #loading-screen');
+    return el?.closest?.('button, .action-btn, .theme-card, #pause-btn, #mute-btn, #ui-layer, #menu, #revive-screen, #pause-menu, #stats-modal, #leaderboard-panel, #tutorial-overlay, #ad-overlay, #reconnect-banner, #loading-screen');
 }
 document.addEventListener('touchmove', e => {
     if (!engine?.active) return;
@@ -223,46 +228,18 @@ document.addEventListener('touchmove', e => {
 }, { passive: false });
 document.addEventListener('contextmenu', e => e.preventDefault());
 
-/**
- * Mobile-safe button binding (Telegram WebView often skips pointerup/click).
- * touchend = primary on phones; click = desktop mouse fallback.
- */
+/** HUD controls inside scaled #app-root */
 function bindAction(el, handler) {
     if (!el) return;
     let last = 0;
-    let touchHandled = false;
-    let touchOnEl = false;
-
     const run = async (e) => {
         const now = Date.now();
         if (now - last < 400) return;
         last = now;
         if (e?.stopPropagation) e.stopPropagation();
-        try {
-            await handler(e);
-        } catch (err) {
-            console.error('[UI]', err);
-        }
+        try { await handler(e); } catch (err) { console.error('[UI]', err); }
     };
-
-    el.addEventListener('touchstart', () => { touchOnEl = true; }, { passive: true });
-    el.addEventListener('touchcancel', () => { touchOnEl = false; }, { passive: true });
-
-    el.addEventListener('touchend', (e) => {
-        if (!touchOnEl) return;
-        touchOnEl = false;
-        touchHandled = true;
-        if (e.cancelable) e.preventDefault();
-        e.stopPropagation();
-        run(e);
-        setTimeout(() => { touchHandled = false; }, 500);
-    }, { passive: false });
-
-    el.addEventListener('click', (e) => {
-        if (touchHandled) return;
-        e.stopPropagation();
-        run(e);
-    });
+    el.addEventListener('click', run);
 }
 
 function bindGameTap(root) {
@@ -437,25 +414,6 @@ function showMenu(score) {
     refreshDailyMenuInfo();
 }
 
-// ── Stats modal buttons ───────────────────────────────────────────────────────
-bindAction(document.getElementById('stats-continue-btn'), () => {
-    const score = parseInt(document.getElementById('stats-score-hero-val').textContent, 10) || 0;
-    hideStatsModal();
-    showMenu(score);
-});
-
-bindAction(document.getElementById('stats-share-btn'), () => {
-    const score = parseInt(document.getElementById('stats-score-hero-val').textContent, 10) || 0;
-    const time  = document.getElementById('stats-time').textContent;
-    const text  = `I scored ${score} in ${time} on Orbit Escape! 🛸 Can you beat me?`;
-    if (TG?.showShareButton) {
-        const botName = window.__BOT_USERNAME__ || 'OrbitEscapeBot';
-        TG.showShareButton({ text, url: `https://t.me/${botName}/play` });
-    } else {
-        navigator.clipboard?.writeText(text).then(() => alert('Copied to clipboard!'));
-    }
-});
-
 // ── Theme selector ────────────────────────────────────────────────────────────
 function buildThemeCards() {
     const sel = document.getElementById('theme-selector');
@@ -471,11 +429,6 @@ function buildThemeCards() {
         lbl.innerText = t.name;
         lbl.style.cssText = 'font-weight:800;font-size:.6rem';
         card.append(cv, lbl);
-        bindAction(card, () => {
-            engine.setTheme(t.id);
-            document.querySelectorAll('.theme-card').forEach(c => c.classList.remove('active'));
-            card.classList.add('active');
-        });
         sel.appendChild(card);
     });
 }
@@ -535,12 +488,6 @@ function closeLeaderboard() {
     if (TG) TG.BackButton.hide();
 }
 
-bindAction(document.getElementById('leaderboard-btn'), async () => { await unlockAudio(); openLeaderboard('global'); });
-bindAction(document.getElementById('leaderboard-close-btn'), closeLeaderboard);
-bindAction(document.getElementById('lb-global-tab'),  () => openLeaderboard('global'));
-bindAction(document.getElementById('lb-friends-tab'), () => openLeaderboard('friends'));
-bindAction(document.getElementById('lb-daily-tab'),   () => openLeaderboard('daily'));
-
 // ── Start game ────────────────────────────────────────────────────────────────
 async function launchGame(isDaily = false) {
     try {
@@ -572,47 +519,105 @@ async function launchGame(isDaily = false) {
     }
 }
 
-bindAction(document.getElementById('start-btn'), () => launchGame(false));
-bindAction(document.getElementById('daily-btn'), () => launchGame(true));
-
-// ── Revive ────────────────────────────────────────────────────────────────────
-bindAction(document.getElementById('revive-btn'), async () => {
-    document.getElementById('revive-screen').style.display = 'none';
-    try {
-        await AdBroker.show();
-        document.getElementById('pause-btn').style.display = 'flex';
-        document.getElementById('mute-btn').classList.add('active');
-        if (TG?.BackButton) TG.BackButton.show();
-        engine.revive();
-    } catch { await triggerGameOver(lastDeathStats); }
-});
-bindAction(document.getElementById('skip-revive'), () => triggerGameOver(lastDeathStats, { goToMenu: true }));
-
-// ── Pause controls ────────────────────────────────────────────────────────────
+// ── Pause controls (HUD in #app-root) ───────────────────────────────────────
 bindAction(document.getElementById('pause-btn'), e => { e.stopPropagation(); engine.togglePause(); });
-bindAction(document.getElementById('resume-btn'), () => engine.togglePause());
-bindAction(document.getElementById('quit-btn'), () => {
-    engine.active = false;
-    engine.paused = false;
-    triggerGameOver(engine.getSessionStats(), { goToMenu: true });
-});
 
-// ── Tutorial ──────────────────────────────────────────────────────────────────
+// ── UI layer: one click handler (menus outside scaled transform) ──────────────
 let tutStep = 1;
-document.querySelectorAll('.next-tutorial').forEach(btn => {
-    bindAction(btn, () => {
-        document.querySelector(`.tutorial-step[data-step="${tutStep}"]`).classList.remove('active');
-        tutStep++;
-        document.querySelector(`.tutorial-step[data-step="${tutStep}"]`)?.classList.add('active');
+let uiClickLast = 0;
+
+function setupUiLayerActions() {
+    const ui = document.getElementById('ui-layer');
+    if (!ui) return;
+
+    ui.addEventListener('click', async (e) => {
+        const now = Date.now();
+        if (now - uiClickLast < 350) return;
+        uiClickLast = now;
+
+        const themeCard = e.target.closest?.('.theme-card');
+        if (themeCard?.closest('#theme-selector')) {
+            const themeId = themeCard.getAttribute('data-theme');
+            if (themeId) {
+                engine.setTheme(themeId);
+                document.querySelectorAll('.theme-card').forEach(c => c.classList.remove('active'));
+                themeCard.classList.add('active');
+            }
+            return;
+        }
+
+        if (e.target.closest?.('#start-btn'))  return void await launchGame(false);
+        if (e.target.closest?.('#daily-btn'))   return void await launchGame(true);
+        if (e.target.closest?.('#leaderboard-btn')) {
+            await unlockAudio();
+            openLeaderboard('global');
+            return;
+        }
+        if (e.target.closest?.('#leaderboard-close-btn')) { closeLeaderboard(); return; }
+        if (e.target.closest?.('#lb-global-tab'))  { openLeaderboard('global'); return; }
+        if (e.target.closest?.('#lb-friends-tab')) { openLeaderboard('friends'); return; }
+        if (e.target.closest?.('#lb-daily-tab'))   { openLeaderboard('daily'); return; }
+
+        if (e.target.closest?.('#resume-btn')) { engine.togglePause(); return; }
+        if (e.target.closest?.('#quit-btn')) {
+            engine.active = false;
+            engine.paused = false;
+            triggerGameOver(engine.getSessionStats(), { goToMenu: true });
+            return;
+        }
+
+        if (e.target.closest?.('#revive-btn')) {
+            document.getElementById('revive-screen').style.display = 'none';
+            try {
+                await AdBroker.show();
+                document.getElementById('pause-btn').style.display = 'flex';
+                document.getElementById('mute-btn').classList.add('active');
+                if (TG?.BackButton) TG.BackButton.show();
+                engine.revive();
+            } catch { await triggerGameOver(lastDeathStats); }
+            return;
+        }
+        if (e.target.closest?.('#skip-revive')) {
+            triggerGameOver(lastDeathStats, { goToMenu: true });
+            return;
+        }
+
+        if (e.target.closest?.('#stats-continue-btn')) {
+            const score = parseInt(document.getElementById('stats-score-hero-val').textContent, 10) || 0;
+            hideStatsModal();
+            showMenu(score);
+            return;
+        }
+        if (e.target.closest?.('#stats-share-btn')) {
+            const score = parseInt(document.getElementById('stats-score-hero-val').textContent, 10) || 0;
+            const time  = document.getElementById('stats-time').textContent;
+            const text  = `I scored ${score} in ${time} on Orbit Escape! 🛸 Can you beat me?`;
+            if (TG?.showShareButton) {
+                const botName = window.__BOT_USERNAME__ || 'OrbitEscapeGameBot';
+                TG.showShareButton({ text, url: `https://t.me/${botName}/orbitescape` });
+            } else {
+                navigator.clipboard?.writeText(text).then(() => alert('Copied to clipboard!'));
+            }
+            return;
+        }
+
+        if (e.target.closest?.('.next-tutorial')) {
+            document.querySelector(`.tutorial-step[data-step="${tutStep}"]`)?.classList.remove('active');
+            tutStep++;
+            document.querySelector(`.tutorial-step[data-step="${tutStep}"]`)?.classList.add('active');
+            return;
+        }
+        if (e.target.closest?.('#close-tutorial')) {
+            document.getElementById('tutorial-overlay').style.display = 'none';
+            showMenu();
+            tutStep = 1;
+            document.querySelectorAll('.tutorial-step').forEach(s => s.classList.remove('active'));
+            document.querySelector('.tutorial-step[data-step="1"]')?.classList.add('active');
+        }
     });
-});
-bindAction(document.getElementById('close-tutorial'), () => {
-    document.getElementById('tutorial-overlay').style.display = 'none';
-    showMenu();
-    tutStep = 1;
-    document.querySelectorAll('.tutorial-step').forEach(s => s.classList.remove('active'));
-    document.querySelector('.tutorial-step[data-step="1"]')?.classList.add('active');
-});
+}
+
+setupUiLayerActions();
 
 
 // ── Reveal ────────────────────────────────────────────────────────────────────

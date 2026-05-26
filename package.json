@@ -11,6 +11,7 @@
     "test:auth": "node scripts/test-auth.js",
     "phase1:verify": "node scripts/verify-phase1.js",
     "phase2:verify": "node scripts/verify-phase2.js",
+    "telegram:setup": "node scripts/setup-telegram-menu.js",
     "lint": "eslint ."
   },
   "engines": {

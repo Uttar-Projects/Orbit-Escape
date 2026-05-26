@@ -47,13 +47,15 @@ html.mobile-scaled #app-root {
     touch-action: manipulation;
 }
 
-#menu button,
-#pause-menu button,
-#revive-screen button,
-#stats-modal button,
-#leaderboard-panel button,
-#tutorial-overlay button {
-    cursor: pointer;
+/* Menus/modals: NOT inside scaled #app-root — reliable mobile touches */
+#ui-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    pointer-events: none;
+}
+#ui-layer > * {
+    pointer-events: auto;
 }
 
 #gameCanvas {
@@ -242,14 +244,17 @@ html.mobile-scaled #app-root {
 /* ── Modals (shared base) ────────────────────────────────────── */
 #menu, #revive-screen, #pause-menu, #tutorial-overlay,
 #ad-overlay, #leaderboard-panel, #stats-modal {
-    position: absolute; top: 50%; left: 50%;
+    position: fixed; top: 50%; left: 50%;
     transform: translate(-50%, -50%);
     text-align: center; background: #fff;
     padding: 20px; border: 4px solid #000;
-    z-index: 200; width: 88%; max-width: 340px;
+    z-index: 310; width: 88%; max-width: 340px;
     pointer-events: auto;
     border-radius: 24px; display: flex; flex-direction: column;
     box-shadow: 6px 6px 0px rgba(0,0,0,0.2); box-sizing: border-box;
+    max-height: min(92dvh, 720px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 h1 { font-family: 'Bungee', cursive; color: #000; margin: 0 0 10px 0; font-size: 1.45rem; }
 
@@ -278,9 +283,13 @@ h1 { font-family: 'Bungee', cursive; color: #000; margin: 0 0 10px 0; font-size:
 button.main-cta,
 button.secondary-btn,
 button.text-btn,
+.main-cta.action-btn,
+.secondary-btn.action-btn,
 .theme-card {
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
+    user-select: none;
 }
 
 .theme-card {
@@ -302,23 +311,30 @@ button.text-btn,
 .theme-card.active[data-theme="moon"]    { background: #94a3b8; }
 
 /* ── Buttons ─────────────────────────────────────────────────── */
-button.main-cta {
+button.main-cta,
+.main-cta.action-btn {
     font-family: 'Bungee', cursive; background: #a855f7;
     border: 4px solid #000; padding: 14px; font-size: 1.2rem;
     cursor: pointer; color: #fff; width: 100%; border-radius: 20px;
     box-shadow: 0 6px 0 #000; transition: transform 0.1s;
+    box-sizing: border-box;
 }
-button.main-cta:active { transform: translateY(4px); box-shadow: 0 2px 0 #000; }
+button.main-cta:active,
+.main-cta.action-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #000; }
 button.main-cta:disabled { opacity: 0.5; cursor: not-allowed; }
-button.main-cta.daily { background: #f59e0b; }
+button.main-cta.daily,
+.main-cta.daily { background: #f59e0b; }
 
-button.secondary-btn {
+button.secondary-btn,
+.secondary-btn.action-btn {
     font-family: 'Bungee', cursive; background: transparent;
     border: 3px solid #000; padding: 10px; font-size: 0.95rem;
     cursor: pointer; color: #000; width: 100%; border-radius: 15px;
     margin-top: 10px; transition: background 0.2s;
+    box-sizing: border-box;
 }
-button.secondary-btn:hover { background: #f1f5f9; }
+button.secondary-btn:hover,
+.secondary-btn.action-btn:hover { background: #f1f5f9; }
 button.text-btn {
     background: transparent; border: none; color: #aaa; cursor: pointer;
     font-size: 0.9rem; margin-top: 25px; font-weight: 800; text-decoration: underline;

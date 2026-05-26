@@ -35,16 +35,15 @@ npm run phase2:verify -- https://orbit-escape.onrender.com
 
 ---
 
-## Step 2 — BotFather (5 min) 🤖
+## Step 2 — BotFather Mini App (required for game in Telegram) 🤖
 
-- [ ] [@BotFather](https://t.me/BotFather) → `/myapps` → **Orbit Escape**
-- [ ] **Edit Web App URL** → paste exactly:
+**If you only see the bot but no game:** follow **[docs/TMA_BOT_SETUP.md](TMA_BOT_SETUP.md)**.
 
-  ```
-  https://orbit-escape.onrender.com
-  ```
-
-- [ ] (Optional) `/setdescription`, `/setuserpic` — game icon & description
+- [ ] [@BotFather](https://t.me/BotFather) → `/myapps` → create/edit **Orbit Escape** for **@OrbitEscapeGameBot**
+- [ ] **Web App URL** → `https://orbit-escape.onrender.com`
+- [ ] **Short name** → `orbitescape` (link: `https://t.me/OrbitEscapeGameBot/orbitescape`)
+- [ ] Menu button → Web App (same URL), or run `npm run telegram:setup`
+- [ ] (Optional) `/setdescription`, `/setuserpic`
 
 ---
 
