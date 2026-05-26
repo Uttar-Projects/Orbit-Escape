@@ -13,6 +13,30 @@
         window.__API_BASE__         = '/api';
         window.__ADSGRAM_BLOCK_ID__ = '32481';
         window.__BOT_USERNAME__     = 'OrbitEscapeGameBot';
+
+        // HTML-level failsafe — runs WITHOUT any module imports.
+        // If Render is sleeping, the module JS files hang and never execute,
+        // leaving "Connecting..." on screen forever. This plain script rescues that.
+        (function() {
+            var start = Date.now();
+            var timer = setInterval(function() {
+                var el    = document.getElementById('loading-status');
+                var ls    = document.getElementById('loading-screen');
+                var menu  = document.getElementById('menu');
+                var elapsed = Date.now() - start;
+
+                // After 8 s with no JS change, tell user server is waking up
+                if (elapsed >= 8000 && el && el.textContent === 'Connecting...') {
+                    el.textContent = 'Waking up server\u2026 please wait (~30s cold start)';
+                }
+                // After 35 s force-show menu regardless of module state
+                if (elapsed >= 35000) {
+                    clearInterval(timer);
+                    if (ls)   ls.style.display   = 'none';
+                    if (menu) menu.style.display  = 'flex';
+                }
+            }, 1000);
+        })();
     </script>
 </head>
 <body>
