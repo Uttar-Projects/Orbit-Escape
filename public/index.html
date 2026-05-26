@@ -218,15 +218,33 @@ function isInteractiveTarget(el) {
     return el?.closest?.('button, .theme-card, #pause-btn, #mute-btn, #menu, #revive-screen, #pause-menu, #stats-modal, #leaderboard-panel, #tutorial-overlay, #ad-overlay, #reconnect-banner, #loading-screen');
 }
 document.addEventListener('touchmove', e => {
+    if (!engine?.active) return;
     if (!isInteractiveTarget(e.target)) e.preventDefault();
 }, { passive: false });
 document.addEventListener('contextmenu', e => e.preventDefault());
 
+/** Reliable button taps on mobile (full-screen canvas used to steal touches). */
+function bindAction(el, handler) {
+    if (!el) return;
+    let last = 0;
+    const run = async (e) => {
+        e.stopPropagation();
+        const now = Date.now();
+        if (now - last < 400) return;
+        last = now;
+        try { await handler(e); } catch (err) { console.error('[UI]', err); }
+    };
+    el.addEventListener('pointerup', e => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        run(e);
+    });
+}
+
 function bindGameTap(root) {
     let lastTap = 0;
     const onTap = (e) => {
-        if (!engine?.active || engine.paused) return;
         if (isInteractiveTarget(e.target)) return;
+        if (!engine?.active || engine.paused) return;
         const now = Date.now();
         if (now - lastTap < 280) return;
         lastTap = now;
@@ -429,11 +447,11 @@ function buildThemeCards() {
         lbl.innerText = t.name;
         lbl.style.cssText = 'font-weight:800;font-size:.6rem';
         card.append(cv, lbl);
-        card.onclick = () => {
+        bindAction(card, () => {
             engine.setTheme(t.id);
             document.querySelectorAll('.theme-card').forEach(c => c.classList.remove('active'));
             card.classList.add('active');
-        };
+        });
         sel.appendChild(card);
     });
 }
@@ -493,11 +511,11 @@ function closeLeaderboard() {
     if (TG) TG.BackButton.hide();
 }
 
-document.getElementById('leaderboard-btn').onclick = async () => { await unlockAudio(); openLeaderboard('global'); };
-document.getElementById('leaderboard-close-btn').onclick = closeLeaderboard;
-document.getElementById('lb-global-tab').onclick  = () => openLeaderboard('global');
-document.getElementById('lb-friends-tab').onclick = () => openLeaderboard('friends');
-document.getElementById('lb-daily-tab').onclick   = () => openLeaderboard('daily');
+bindAction(document.getElementById('leaderboard-btn'), async () => { await unlockAudio(); openLeaderboard('global'); });
+bindAction(document.getElementById('leaderboard-close-btn'), closeLeaderboard);
+bindAction(document.getElementById('lb-global-tab'),  () => openLeaderboard('global'));
+bindAction(document.getElementById('lb-friends-tab'), () => openLeaderboard('friends'));
+bindAction(document.getElementById('lb-daily-tab'),   () => openLeaderboard('daily'));
 
 // ── Start game ────────────────────────────────────────────────────────────────
 async function launchGame(isDaily = false) {
@@ -525,11 +543,11 @@ async function launchGame(isDaily = false) {
     }
 }
 
-document.getElementById('start-btn').onclick  = () => launchGame(false);
-document.getElementById('daily-btn').onclick = () => launchGame(true);
+bindAction(document.getElementById('start-btn'), () => launchGame(false));
+bindAction(document.getElementById('daily-btn'), () => launchGame(true));
 
 // ── Revive ────────────────────────────────────────────────────────────────────
-document.getElementById('revive-btn').onclick = async () => {
+bindAction(document.getElementById('revive-btn'), async () => {
     document.getElementById('revive-screen').style.display = 'none';
     try {
         await AdBroker.show();
@@ -538,34 +556,34 @@ document.getElementById('revive-btn').onclick = async () => {
         if (TG?.BackButton) TG.BackButton.show();
         engine.revive();
     } catch { await triggerGameOver(lastDeathStats); }
-};
-document.getElementById('skip-revive').onclick = () => triggerGameOver(lastDeathStats, { goToMenu: true });
+});
+bindAction(document.getElementById('skip-revive'), () => triggerGameOver(lastDeathStats, { goToMenu: true }));
 
 // ── Pause controls ────────────────────────────────────────────────────────────
-document.getElementById('pause-btn').onclick  = e => { e.stopPropagation(); engine.togglePause(); };
-document.getElementById('resume-btn').onclick = () => engine.togglePause();
-document.getElementById('quit-btn').onclick   = () => {
+bindAction(document.getElementById('pause-btn'), e => { e.stopPropagation(); engine.togglePause(); });
+bindAction(document.getElementById('resume-btn'), () => engine.togglePause());
+bindAction(document.getElementById('quit-btn'), () => {
     engine.active = false;
     engine.paused = false;
     triggerGameOver(engine.getSessionStats(), { goToMenu: true });
-};
+});
 
 // ── Tutorial ──────────────────────────────────────────────────────────────────
 let tutStep = 1;
 document.querySelectorAll('.next-tutorial').forEach(btn => {
-    btn.onclick = () => {
+    bindAction(btn, () => {
         document.querySelector(`.tutorial-step[data-step="${tutStep}"]`).classList.remove('active');
         tutStep++;
         document.querySelector(`.tutorial-step[data-step="${tutStep}"]`)?.classList.add('active');
-    };
+    });
 });
-document.getElementById('close-tutorial').onclick = () => {
+bindAction(document.getElementById('close-tutorial'), () => {
     document.getElementById('tutorial-overlay').style.display = 'none';
     showMenu();
     tutStep = 1;
     document.querySelectorAll('.tutorial-step').forEach(s => s.classList.remove('active'));
     document.querySelector('.tutorial-step[data-step="1"]')?.classList.add('active');
-};
+});
 
 
 // ── Reveal ────────────────────────────────────────────────────────────────────
