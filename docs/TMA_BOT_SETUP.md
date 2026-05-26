@@ -80,14 +80,44 @@ Opening only `orbit-escape.onrender.com` in Chrome is **not** the Mini App — s
 
 ---
 
+## “Open App” but blank / nothing shows
+
+Your link [t.me/OrbitEscapeGameBot/orbitescape](https://t.me/OrbitEscapeGameBot/orbitescape) is correct if Telegram shows **Open App**. A blank screen is usually:
+
+### 1. Render cold start (most common on free tier)
+
+The server can take **30–60 seconds** to wake up. In Telegram:
+
+1. Tap **Open App**
+2. Wait on the loading screen at least **45 seconds** (do not close)
+3. You should see **ORBIT ESCAPE** loading, then the menu
+
+Test in phone browser first: open `https://orbit-escape.onrender.com` — if that loads after a wait, Telegram will too after redeploy.
+
+### 2. BotFather Web App URL must match exactly
+
+In `/myapps` → **Orbit Escape** → Web App URL:
+
+```
+https://orbit-escape.onrender.com
+```
+
+No trailing path, no `http://`, no old Railway/ngrok URL.
+
+### 3. After code fix (Telegram boot)
+
+Recent fix: Adsgram script no longer blocks startup; `Telegram.WebApp.ready()` runs only after the menu is visible. **Redeploy on Render** and close/reopen the Mini App.
+
+---
+
 ## Common mistakes
 
 | Problem | Fix |
 |---------|-----|
 | Link `t.me/.../orbitescape` says not found | Short name in BotFather is not `orbitescape` |
 | Bot chat has no Play button | Set Menu Button or use direct link above |
-| Blank screen in Telegram | Render deploy failed — check `/health` |
-| Works in Chrome, not Telegram | Use the `t.me/.../orbitescape` link inside Telegram |
+| Blank screen in Telegram | Wait 45s for cold start; check `https://orbit-escape.onrender.com/health` |
+| Works in Chrome, not Telegram | Use the `t.me/.../orbitescape` link inside Telegram app |
 
 ---
 

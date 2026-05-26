@@ -3,9 +3,7 @@
  * =========
  * Ad broker lifecycle manager.
  *
- * Currently ships with a fully-functional stub for development.
- * To use Adsgram in production, set window.__ADSGRAM_BLOCK_ID__ before
- * this module loads, and include the Adsgram SDK script in index.html.
+ * Adsgram SDK is loaded on demand (not in index.html) so Telegram boot is not blocked.
  *
  * The AdBroker.show() contract:
  *   Resolves →  { done: true }             — user watched the full ad, grant reward
@@ -13,27 +11,48 @@
  *   Rejects  →  { error: true, msg: '…' }  — network/SDK failure, no reward
  */
 
+let _adsgramLoad = null;
+
+function loadAdsgramSdk() {
+    if (window.Adsgram) return Promise.resolve();
+    if (_adsgramLoad) return _adsgramLoad;
+    _adsgramLoad = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://sad.adsgram.ai/js/sad.min.js';
+        s.async = true;
+        const t = setTimeout(() => reject(new Error('Adsgram SDK timeout')), 12000);
+        s.onload = () => { clearTimeout(t); resolve(); };
+        s.onerror = () => { clearTimeout(t); reject(new Error('Adsgram SDK failed to load')); };
+        document.head.appendChild(s);
+    }).catch(err => { _adsgramLoad = null; throw err; });
+    return _adsgramLoad;
+}
+
 export const AdBroker = {
     /**
      * Show a rewarded ad.
      * @returns {Promise<{ done: boolean }>}
      */
-    show() {
-        // ── Production path: real Adsgram SDK ──────────────────────────────
+    async show() {
         const blockId = window.__ADSGRAM_BLOCK_ID__;
-        if (blockId && window.Adsgram) {
-            return new Promise((resolve, reject) => {
-                const AdController = window.Adsgram.init({ blockId });
-                AdController.show()
-                    .then(result => {
-                        if (result.done) resolve({ done: true });
-                        else reject({ skipped: true, done: false });
-                    })
-                    .catch(err => reject({ error: true, done: false, msg: err?.message || 'Ad failed' }));
-            });
+        if (blockId) {
+            try {
+                await loadAdsgramSdk();
+                if (window.Adsgram) {
+                    return new Promise((resolve, reject) => {
+                        const AdController = window.Adsgram.init({ blockId });
+                        AdController.show()
+                            .then(result => {
+                                if (result.done) resolve({ done: true });
+                                else reject({ skipped: true, done: false });
+                            })
+                            .catch(err => reject({ error: true, done: false, msg: err?.message || 'Ad failed' }));
+                    });
+                }
+            } catch (err) {
+                console.warn('[Adsgram]', err.message);
+            }
         }
-
-        // ── Development stub ───────────────────────────────────────────────
         return this._stub();
     },
 

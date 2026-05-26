@@ -170,8 +170,8 @@ app.use(helmet({
             styleSrc:    ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             fontSrc:     ["'self'", "https://fonts.gstatic.com"],
             imgSrc:      ["'self'", "data:", "https:"],
-            connectSrc:  ["'self'", "https://api.telegram.org"],
-            frameSrc:    ["'none'"],
+            connectSrc:  ["'self'", "https://api.telegram.org", "https://sad.adsgram.ai", "https://api.adsgram.ai"],
+            frameSrc:    ["'self'", "https://sad.adsgram.ai", "https://adsgram.ai"],
             objectSrc:   ["'none'"]
         }
     },

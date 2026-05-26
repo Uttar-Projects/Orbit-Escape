@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Orbit Escape</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+    <!-- defer: do not block game boot in Telegram WebView -->
+    <script defer src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Fredoka:wght@300..700&display=swap" rel="stylesheet">
@@ -25,6 +25,7 @@
     <div class="loading-sub">Loading mission data...</div>
     <div class="loading-bar-wrap"><div class="loading-bar-fill" id="loading-bar"></div></div>
     <div class="loading-status" id="loading-status">Connecting...</div>
+    <div class="loading-status" id="boot-error" style="display:none;color:#f87171;margin-top:8px"></div>
 </div>
 
 <div id="app-root">
@@ -198,11 +199,19 @@ const loadingScreen = document.getElementById('loading-screen');
 function setLoad(pct, msg) { loadingBar.style.width = `${pct}%`; loadingStatus.textContent = msg; }
 function hideLoader() { loadingScreen.classList.add('fade-out'); setTimeout(() => { loadingScreen.style.display = 'none'; }, 500); }
 
-// ── Telegram SDK ──────────────────────────────────────────────────────────────
+// ── Telegram SDK (ready() only after UI visible — early ready() = blank screen) ─
 setLoad(10, 'Connecting to Telegram...');
 const TG = window.Telegram?.WebApp;
+function finishTelegramBoot() {
+    if (!TG) return;
+    try {
+        TG.expand();
+        TG.setHeaderColor('#0f0f1a');
+        TG.setBackgroundColor('#0f0f1a');
+        TG.ready();
+    } catch (_) {}
+}
 if (TG) {
-    TG.expand();
     TG.enableClosingConfirmation();
     TG.setHeaderColor('#0f0f1a');
     TG.setBackgroundColor('#0f0f1a');
@@ -212,8 +221,25 @@ if (TG) {
         else if (document.getElementById('stats-modal').style.display !== 'none') { hideStatsModal(); showMenu(); }
         else if (document.getElementById('revive-screen').style.display !== 'none') triggerGameOver(lastDeathStats, { goToMenu: true });
     });
-    TG.ready();
 }
+
+const bootErrorEl = document.getElementById('boot-error');
+function showBootError(msg) {
+    if (bootErrorEl) { bootErrorEl.style.display = 'block'; bootErrorEl.textContent = msg; }
+    console.error('[Boot]', msg);
+}
+window.addEventListener('error', e => showBootError(e.message || 'Load failed'));
+window.addEventListener('unhandledrejection', e => showBootError(e.reason?.message || String(e.reason)));
+
+const bootFailsafe = setTimeout(() => {
+    setLoad(100, 'Server woke up — starting game…');
+    hideLoader();
+    try {
+        setGameHUDVisible(false);
+        document.getElementById('menu').style.display = 'flex';
+    } catch (_) {}
+    finishTelegramBoot();
+}, 25000);
 
 // ── Mobile viewport scale (480px design frame) ───────────────────────────────
 initViewportScale();
@@ -623,6 +649,7 @@ setupUiLayerActions();
 // ── Reveal ────────────────────────────────────────────────────────────────────
 setLoad(100, 'Ready!');
 setTimeout(() => {
+    clearTimeout(bootFailsafe);
     hideLoader();
     try {
         setGameHUDVisible(false);
@@ -636,6 +663,7 @@ setTimeout(() => {
         console.error('[Boot] UI init failed:', err);
         document.getElementById('menu').style.display = 'flex';
     }
+    finishTelegramBoot();
 }, 400);
 </script>
 </body>
