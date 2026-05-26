@@ -44,6 +44,16 @@ body {
 html.mobile-scaled #app-root {
     left: 50%;
     transform: translateX(-50%) scale(var(--app-scale));
+    touch-action: manipulation;
+}
+
+#menu button,
+#pause-menu button,
+#revive-screen button,
+#stats-modal button,
+#leaderboard-panel button,
+#tutorial-overlay button {
+    cursor: pointer;
 }
 
 #gameCanvas {

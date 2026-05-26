@@ -55,6 +55,7 @@ function warmUp() {
 
 export function initAudio() {
     const unlock = () => { unlockAudio(); };
+    document.addEventListener('touchstart', unlock, { passive: true });
     document.addEventListener('pointerdown', unlock, { passive: true });
     document.addEventListener('keydown', unlock, { passive: true });
 }

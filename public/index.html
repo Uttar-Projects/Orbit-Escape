@@ -18,9 +18,7 @@
 </head>
 <body>
 
-<div id="app-root">
-
-<!-- ── Loading ──────────────────────────────────────────────────────── -->
+<!-- Loading outside scaled #app-root so it never blocks touches -->
 <div id="loading-screen">
     <div class="loading-planet"></div>
     <div class="loading-title">ORBIT ESCAPE</div>
@@ -28,6 +26,8 @@
     <div class="loading-bar-wrap"><div class="loading-bar-fill" id="loading-bar"></div></div>
     <div class="loading-status" id="loading-status">Connecting...</div>
 </div>
+
+<div id="app-root">
 
 <!-- ── Reconnect ────────────────────────────────────────────────────── -->
 <div id="reconnect-banner">
@@ -110,9 +110,9 @@
         <div id="daily-info-date" class="daily-info-date">Loading…</div>
         <p class="daily-info-desc">Same obstacle pattern for every pilot today. Compete on equal footing!</p>
     </div>
-    <button class="main-cta" id="start-btn">🚀 LAUNCH!</button>
-    <button class="main-cta daily" id="daily-btn" style="margin-top:10px">📅 DAILY CHALLENGE</button>
-    <button class="secondary-btn" id="leaderboard-btn">🏆 LEADERBOARD</button>
+    <button type="button" class="main-cta" id="start-btn">🚀 LAUNCH!</button>
+    <button type="button" class="main-cta daily" id="daily-btn" style="margin-top:10px">📅 DAILY CHALLENGE</button>
+    <button type="button" class="secondary-btn" id="leaderboard-btn">🏆 LEADERBOARD</button>
 </div>
 
 <!-- ── Leaderboard ──────────────────────────────────────────────────── -->
@@ -223,19 +223,44 @@ document.addEventListener('touchmove', e => {
 }, { passive: false });
 document.addEventListener('contextmenu', e => e.preventDefault());
 
-/** Reliable button taps on mobile (full-screen canvas used to steal touches). */
+/**
+ * Mobile-safe button binding (Telegram WebView often skips pointerup/click).
+ * touchend = primary on phones; click = desktop mouse fallback.
+ */
 function bindAction(el, handler) {
     if (!el) return;
     let last = 0;
+    let touchHandled = false;
+    let touchOnEl = false;
+
     const run = async (e) => {
-        e.stopPropagation();
         const now = Date.now();
         if (now - last < 400) return;
         last = now;
-        try { await handler(e); } catch (err) { console.error('[UI]', err); }
+        if (e?.stopPropagation) e.stopPropagation();
+        try {
+            await handler(e);
+        } catch (err) {
+            console.error('[UI]', err);
+        }
     };
-    el.addEventListener('pointerup', e => {
-        if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+    el.addEventListener('touchstart', () => { touchOnEl = true; }, { passive: true });
+    el.addEventListener('touchcancel', () => { touchOnEl = false; }, { passive: true });
+
+    el.addEventListener('touchend', (e) => {
+        if (!touchOnEl) return;
+        touchOnEl = false;
+        touchHandled = true;
+        if (e.cancelable) e.preventDefault();
+        e.stopPropagation();
+        run(e);
+        setTimeout(() => { touchHandled = false; }, 500);
+    }, { passive: false });
+
+    el.addEventListener('click', (e) => {
+        if (touchHandled) return;
+        e.stopPropagation();
         run(e);
     });
 }
@@ -243,15 +268,14 @@ function bindAction(el, handler) {
 function bindGameTap(root) {
     let lastTap = 0;
     const onTap = (e) => {
-        if (isInteractiveTarget(e.target)) return;
         if (!engine?.active || engine.paused) return;
+        if (isInteractiveTarget(e.target)) return;
         const now = Date.now();
         if (now - lastTap < 280) return;
         lastTap = now;
         engine.reverseDirection();
-        if (e.cancelable) e.preventDefault();
     };
-    root.addEventListener('touchstart', onTap, { passive: false });
+    root.addEventListener('touchstart', onTap, { passive: true });
     root.addEventListener('pointerdown', e => {
         if (e.pointerType === 'touch') return;
         onTap(e);
@@ -262,7 +286,7 @@ function bindGameTap(root) {
 const reconnectBanner = document.getElementById('reconnect-banner');
 window.addEventListener('offline', () => { reconnectBanner.style.display = 'block'; });
 window.addEventListener('online',  () => { reconnectBanner.style.display = 'none'; });
-document.getElementById('reconnect-btn').onclick = async () => {
+bindAction(document.getElementById('reconnect-btn'), async () => {
     if (navigator.onLine) {
         reconnectBanner.style.display = 'none';
         const saved = await loadProgress();
@@ -270,7 +294,7 @@ document.getElementById('reconnect-btn').onclick = async () => {
         document.getElementById('best').innerText = `TOP: ${bestScore}`;
         updateLevelUI(totalXp);
     }
-};
+});
 
 // ── Init modules ──────────────────────────────────────────────────────────────
 initCommentary(document.getElementById('commentary'));
@@ -295,11 +319,11 @@ bindGameTap(document.getElementById('app-root'));
 
 // ── Mute button ───────────────────────────────────────────────────────────────
 const muteBtn = document.getElementById('mute-btn');
-muteBtn.onclick = () => {
+bindAction(muteBtn, () => {
     const nowMuted = !isMuted();
     setMuted(nowMuted);
     muteBtn.textContent = nowMuted ? '🔇' : '🔊';
-};
+});
 
 // ── Multiplier HUD ────────────────────────────────────────────────────────────
 engine.addEventListener('multiplier', e => updateMultiplierHUD(e.detail));
@@ -414,13 +438,13 @@ function showMenu(score) {
 }
 
 // ── Stats modal buttons ───────────────────────────────────────────────────────
-document.getElementById('stats-continue-btn').onclick = () => {
+bindAction(document.getElementById('stats-continue-btn'), () => {
     const score = parseInt(document.getElementById('stats-score-hero-val').textContent, 10) || 0;
     hideStatsModal();
     showMenu(score);
-};
+});
 
-document.getElementById('stats-share-btn').onclick = () => {
+bindAction(document.getElementById('stats-share-btn'), () => {
     const score = parseInt(document.getElementById('stats-score-hero-val').textContent, 10) || 0;
     const time  = document.getElementById('stats-time').textContent;
     const text  = `I scored ${score} in ${time} on Orbit Escape! 🛸 Can you beat me?`;
@@ -430,7 +454,7 @@ document.getElementById('stats-share-btn').onclick = () => {
     } else {
         navigator.clipboard?.writeText(text).then(() => alert('Copied to clipboard!'));
     }
-};
+});
 
 // ── Theme selector ────────────────────────────────────────────────────────────
 function buildThemeCards() {
@@ -519,27 +543,32 @@ bindAction(document.getElementById('lb-daily-tab'),   () => openLeaderboard('dai
 
 // ── Start game ────────────────────────────────────────────────────────────────
 async function launchGame(isDaily = false) {
-    await unlockAudio();
+    try {
+        unlockAudio().catch(() => {});
 
-    hideAllOverlays();
-    lastDeathStats = null;
-    setGameHUDVisible(true);
-    document.getElementById('menu').style.display      = 'none';
-    document.getElementById('final-stats').innerText   = '';
-    document.getElementById('pause-btn').style.display = 'flex';
-    document.getElementById('mute-btn').classList.add('active');
-    if (TG?.BackButton) TG.BackButton.show();
+        hideAllOverlays();
+        lastDeathStats = null;
+        setGameHUDVisible(true);
+        document.getElementById('menu').style.display      = 'none';
+        document.getElementById('final-stats').innerText   = '';
+        document.getElementById('pause-btn').style.display = 'flex';
+        document.getElementById('mute-btn').classList.add('active');
+        if (TG?.BackButton) TG.BackButton.show();
 
-    await startGameSession();
+        if (isDaily) {
+            const daily = await fetchDailyChallenge();
+            document.getElementById('daily-mode-date').textContent = daily.label;
+            document.getElementById('daily-mode-hud').style.display = 'flex';
+            engine.startDailyChallenge(daily.seed);
+        } else {
+            document.getElementById('daily-mode-hud').style.display = 'none';
+            engine.startGame();
+        }
 
-    if (isDaily) {
-        const daily = await fetchDailyChallenge();
-        document.getElementById('daily-mode-date').textContent = daily.label;
-        document.getElementById('daily-mode-hud').style.display = 'flex';
-        engine.startDailyChallenge(daily.seed);
-    } else {
-        document.getElementById('daily-mode-hud').style.display = 'none';
-        engine.startGame();
+        startGameSession().catch(err => console.warn('[API] Session start:', err));
+    } catch (err) {
+        console.error('[launchGame]', err);
+        showMenu();
     }
 }
 
