@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Orbit Escape</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script async src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Fredoka:wght@300..700&display=swap" rel="stylesheet">
@@ -198,28 +198,35 @@ const loadingScreen = document.getElementById('loading-screen');
 function setLoad(pct, msg) { loadingBar.style.width = `${pct}%`; loadingStatus.textContent = msg; }
 function hideLoader() { loadingScreen.classList.add('fade-out'); setTimeout(() => { loadingScreen.style.display = 'none'; }, 500); }
 
-// ── Telegram SDK (ready() only after UI visible — early ready() = blank screen) ─
-setLoad(10, 'Connecting to Telegram...');
-const TG = window.Telegram?.WebApp;
+// ── Telegram SDK ─────────────────────────────────────────────────────────────
+setLoad(10, 'Loading...');
+// The SDK may not be ready yet (async script); poll briefly then give up
+let TG = null;
+for (let i = 0; i < 20; i++) {
+    if (window.Telegram?.WebApp) { TG = window.Telegram.WebApp; break; }
+    await new Promise(r => setTimeout(r, 50));
+}
+
 function finishTelegramBoot() {
     if (!TG) return;
-    try {
-        TG.expand();
-        TG.setHeaderColor('#0f0f1a');
-        TG.setBackgroundColor('#0f0f1a');
-        TG.ready();
-    } catch (_) {}
+    try { TG.expand?.(); } catch (_) {}
+    try { TG.setHeaderColor?.('#0f0f1a'); } catch (_) {}
+    try { TG.setBackgroundColor?.('#0f0f1a'); } catch (_) {}
+    try { TG.ready?.(); } catch (_) {}
 }
+
 if (TG) {
-    TG.enableClosingConfirmation();
-    TG.setHeaderColor('#0f0f1a');
-    TG.setBackgroundColor('#0f0f1a');
-    TG.BackButton?.onClick?.(() => {
-        if (engine?.active) engine.togglePause();
-        else if (document.getElementById('leaderboard-panel').style.display !== 'none') closeLeaderboard();
-        else if (document.getElementById('stats-modal').style.display !== 'none') { hideStatsModal(); showMenu(); }
-        else if (document.getElementById('revive-screen').style.display !== 'none') triggerGameOver(lastDeathStats, { goToMenu: true });
-    });
+    try { TG.enableClosingConfirmation?.(); } catch (_) {}
+    try { TG.setHeaderColor?.('#0f0f1a'); } catch (_) {}
+    try { TG.setBackgroundColor?.('#0f0f1a'); } catch (_) {}
+    try {
+        TG.BackButton?.onClick?.(() => {
+            if (engine?.active) engine.togglePause();
+            else if (document.getElementById('leaderboard-panel').style.display !== 'none') closeLeaderboard();
+            else if (document.getElementById('stats-modal').style.display !== 'none') { hideStatsModal(); showMenu(); }
+            else if (document.getElementById('revive-screen').style.display !== 'none') triggerGameOver(lastDeathStats, { goToMenu: true });
+        });
+    } catch (_) {}
 }
 
 const bootErrorEl = document.getElementById('boot-error');
@@ -231,14 +238,11 @@ window.addEventListener('error', e => showBootError(e.message || 'Load failed'))
 window.addEventListener('unhandledrejection', e => showBootError(e.reason?.message || String(e.reason)));
 
 const bootFailsafe = setTimeout(() => {
-    setLoad(100, 'Server woke up — starting game…');
-    hideLoader();
-    try {
-        setGameHUDVisible(false);
-        document.getElementById('menu').style.display = 'flex';
-    } catch (_) {}
-    finishTelegramBoot();
-}, 25000);
+    try { setLoad(100, 'Ready!'); hideLoader(); } catch (_) {}
+    try { setGameHUDVisible(false); } catch (_) {}
+    try { document.getElementById('menu').style.display = 'flex'; } catch (_) {}
+    try { finishTelegramBoot(); } catch (_) {}
+}, 12000);
 
 // ── Mobile viewport scale (480px design frame) ───────────────────────────────
 initViewportScale();

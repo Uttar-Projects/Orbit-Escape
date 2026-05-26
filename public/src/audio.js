@@ -2,16 +2,16 @@
  * audio.js — Web Audio engine
  *
  * Mobile unlock strategy (Android Chrome + Telegram WebView):
- *   1. On first gesture, create AudioContext and IMMEDIATELY play a 1-frame silent buffer.
- *      Browsers count "audio started" as permission — more reliable than resume() alone.
- *   2. Also call ctx.resume() and track the Promise.
- *   3. play() queues sounds through the tracked Promise if context isn't running yet.
+ *   1. AudioContext is pre-created in initAudio() (starts suspended on mobile).
+ *   2. On first gesture, play a 1-frame silent buffer AND call ctx.resume().
+ *      Scheduling audio on a suspended context works — it plays the instant
+ *      the context transitions to running.
+ *   3. play() schedules sounds immediately regardless of ctx.state, then
+ *      nudges resume() to ensure the context is running.
  */
 
-let ctx             = null;
-let muted           = false;
-let _unlockPromise  = null;   // resolves when ctx is running
-let _resolved       = false;  // true once unlock completed at least once
+let ctx   = null;
+let muted = false;
 
 function createContext() {
     if (ctx) return;
@@ -22,8 +22,7 @@ function createContext() {
 
 /**
  * Play a 1-frame silent buffer — the most reliable mobile unlock.
- * On Android Chrome, starting a BufferSource within a user gesture
- * immediately grants audio permission regardless of ctx.state.
+ * Browsers grant audio permission when any audio is started within a gesture.
  */
 function _playUnlockBuffer() {
     if (!ctx) return;
@@ -37,32 +36,19 @@ function _playUnlockBuffer() {
 }
 
 /**
- * Call synchronously inside ANY user-gesture handler (click, touchstart, pointerdown).
- * Safe to call multiple times — re-entrancy guarded.
+ * Call synchronously inside ANY user-gesture handler.
+ * Safe to call multiple times.
  */
 export function unlockFromGesture() {
-    createContext();
+    if (!ctx) createContext();
     if (!ctx) return;
-
     _playUnlockBuffer();
-
-    if (ctx.state !== 'running' && !_unlockPromise) {
-        _unlockPromise = ctx.resume()
-            .then(() => { _resolved = true; _unlockPromise = null; })
-            .catch(() => { _unlockPromise = null; });
-    } else if (ctx.state === 'running') {
-        _resolved = true;
-    }
-}
-
-/** Async wrapper — use where you can await (not required for gestures). */
-export async function unlockAudio() {
-    unlockFromGesture();
-    if (!ctx) return;
-    if (_unlockPromise) await _unlockPromise;
+    if (ctx.state !== 'running') ctx.resume().catch(() => {});
 }
 
 export function initAudio() {
+    // Pre-create context so it's ready before the first gesture
+    createContext();
     const unlock = () => unlockFromGesture();
     // capture:true fires before any other handler — guarantees gesture context
     document.addEventListener('touchstart', unlock, { passive: true, capture: true });
@@ -98,27 +84,12 @@ function osc(type, freq, start) {
 }
 
 function play(buildFn) {
-    if (muted) return;
-    if (!ctx) return;          // initAudio not called yet — skip silently
-
-    const run = () => {
-        if (!ctx || muted) return;
-        try { buildFn(ctx.currentTime); } catch (_) {}
-    };
-
-    if (ctx.state === 'running') {
-        run();
-        return;
-    }
-
-    // Context resuming — queue through tracked promise
-    if (_unlockPromise) {
-        _unlockPromise.then(run).catch(() => {});
-        return;
-    }
-
-    // Context still suspended but no unlock in progress (e.g. resumed externally)
-    ctx.resume().then(run).catch(() => {});
+    if (muted || !ctx) return;
+    // Schedule audio immediately — nodes scheduled on a suspended context
+    // will play the instant the context transitions to running.
+    try { buildFn(ctx.currentTime); } catch (_) {}
+    // Nudge resume in case we're still suspended (no-op if already running)
+    if (ctx.state !== 'running') ctx.resume().catch(() => {});
 }
 
 // ── Public sound functions ────────────────────────────────────────────────────
