@@ -193,12 +193,17 @@ app.use((req, res, next) => {
     next();
 });
 
-// Static frontend — no cache in dev so hard refresh always picks up changes
+// Static frontend
+// index.html: always revalidate so new deploys are picked up immediately
+// (Telegram WebView caches aggressively; max-age on index.html breaks updates)
+// JS/CSS/assets: cache 1 day in prod for performance
 app.use(express.static(path.join(__dirname, 'public'), {
     maxAge: IS_PROD ? '1d' : 0,
-    etag:   IS_PROD,
+    etag:   true,
     setHeaders(res, filePath) {
-        if (!IS_PROD) {
+        if (filePath.endsWith('index.html') || filePath.endsWith('/')) {
+            res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+        } else if (!IS_PROD) {
             res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
         }
     }
