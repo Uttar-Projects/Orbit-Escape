@@ -214,6 +214,15 @@ app.use('/api/', apiLimiter);
 // ── GET /health ──────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => healthHandler(db.testConnection, req, res));
 
+// ── GET /api/ad-reward — Adsgram server-side reward callback ─────────────────
+// Adsgram calls this URL after a user completes watching a rewarded ad.
+// The [userId] placeholder is replaced by Adsgram with the Telegram user ID.
+app.get('/api/ad-reward', (req, res) => {
+    const userId = req.query.userId;
+    console.log(`[Adsgram] Reward callback for userId=${userId}`);
+    res.status(200).json({ ok: true });
+});
+
 // ── POST /api/get-progress ───────────────────────────────────────────────────
 app.post('/api/get-progress', requireTelegramAuth, async (req, res) => {
     const userId = req.tgUser?.id;
