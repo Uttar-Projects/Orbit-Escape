@@ -46,7 +46,15 @@ export const AdBroker = {
                                 if (result.done) resolve({ done: true });
                                 else reject({ skipped: true, done: false });
                             })
-                            .catch(err => reject({ error: true, done: false, msg: err?.message || 'Ad failed' }));
+                            .catch(err => {
+                                const msg = err?.message || '';
+                                // Outside Telegram or block not found — fall back to stub silently
+                                if (msg.includes('launch parameters') || msg.includes('not found')) {
+                                    resolve(this._stub());
+                                } else {
+                                    reject({ error: true, done: false, msg });
+                                }
+                            });
                     });
                 }
             } catch (err) {
