@@ -186,7 +186,7 @@ import { initCommentary, updateLevelUI, updateHealthUI,
          updateMultiplierHUD, showStatsModal,
          hideStatsModal }                        from './src/ui/commentary.js';
 import { AdBroker }                              from './src/ui/ads.js';
-import { initAudio, unlockAudio, setMuted, isMuted }          from './src/audio.js';
+import { initAudio, unlockFromGesture, unlockAudio, setMuted, isMuted, loadMutedPreference } from './src/audio.js';
 import { loadProgress, saveProgress,
          fetchLeaderboard, fetchFriendsLeaderboard,
          fetchDailyChallenge, initSaveStatus,
@@ -276,6 +276,7 @@ function bindGameTap(root) {
         const now = Date.now();
         if (now - lastTap < 280) return;
         lastTap = now;
+        unlockFromGesture();
         engine.reverseDirection();
     };
     root.addEventListener('touchstart', onTap, { passive: true });
@@ -302,6 +303,7 @@ bindAction(document.getElementById('reconnect-btn'), async () => {
 // ── Init modules ──────────────────────────────────────────────────────────────
 initCommentary(document.getElementById('commentary'));
 initSaveStatus(document.getElementById('save-status'));
+loadMutedPreference();
 initAudio();
 
 // ── Load player progress ──────────────────────────────────────────────────────
@@ -322,10 +324,12 @@ bindGameTap(document.getElementById('app-root'));
 
 // ── Mute button ───────────────────────────────────────────────────────────────
 const muteBtn = document.getElementById('mute-btn');
+muteBtn.textContent = isMuted() ? '🔇' : '🔊';
 bindAction(muteBtn, () => {
     const nowMuted = !isMuted();
     setMuted(nowMuted);
     muteBtn.textContent = nowMuted ? '🔇' : '🔊';
+    if (!nowMuted) unlockFromGesture();
 });
 
 // ── Multiplier HUD ────────────────────────────────────────────────────────────
@@ -517,7 +521,7 @@ function closeLeaderboard() {
 // ── Start game ────────────────────────────────────────────────────────────────
 async function launchGame(isDaily = false) {
     try {
-        unlockAudio().catch(() => {});
+        unlockFromGesture();
 
         hideAllOverlays();
         lastDeathStats = null;
@@ -560,6 +564,7 @@ function setupUiLayerActions() {
         const now = Date.now();
         if (now - uiClickLast < 350) return;
         uiClickLast = now;
+        unlockFromGesture();
 
         const themeCard = e.target.closest?.('.theme-card');
         if (themeCard?.closest('#theme-selector')) {

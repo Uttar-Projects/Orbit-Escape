@@ -2,66 +2,87 @@
  * audio.js
  * ========
  * Procedural Web Audio API sound engine.
- * No audio files — everything is synthesised.
+ * Mobile requires resume() + audible output inside the same user gesture.
  */
 
 let ctx           = null;
 let muted         = false;
 let warmed        = false;
-let unlockPromise = null;
 
 function createContext() {
     if (ctx) return ctx;
-    try { ctx = new (window.AudioContext || window.webkitAudioContext)(); }
-    catch (_) {}
+    try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return null;
+        ctx = new Ctx();
+    } catch (_) {}
     return ctx;
 }
 
-/** Resume AudioContext on a user gesture — call before gameplay starts. */
-export async function unlockAudio() {
+/** Play one tap blip immediately (ctx must exist). */
+function blipTap(t) {
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.15, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    g.connect(ctx.destination);
+
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(520, t);
+    o.frequency.exponentialRampToValueAtTime(260, t + 0.1);
+    o.connect(g);
+    o.start(t);
+    o.stop(t + 0.1);
+}
+
+function warmUp(t) {
+    if (!ctx || warmed || muted) return;
+    warmed = true;
+    try { blipTap(t ?? ctx.currentTime); } catch (_) {}
+}
+
+/**
+ * Call synchronously inside click / touchstart / pointerdown handlers.
+ * iOS & Android ignore audio if resume() runs outside the gesture stack.
+ */
+export function unlockFromGesture() {
     createContext();
     if (!ctx) return;
 
-    if (ctx.state === 'running') {
-        warmUp();
-        return;
+    if (ctx.state === 'suspended') {
+        try { ctx.resume(); } catch (_) {}
     }
-
-    if (!unlockPromise) {
-        unlockPromise = ctx.resume()
-            .then(() => warmUp())
-            .finally(() => { unlockPromise = null; });
-    }
-    return unlockPromise;
+    warmUp(ctx.currentTime);
 }
 
-function warmUp() {
-    if (!ctx || warmed || muted) return;
-    warmed = true;
-    // Tiny silent blip — forces the audio pipeline to start immediately
-    try {
-        const t = ctx.currentTime;
-        const g = ctx.createGain();
-        g.gain.setValueAtTime(0.0001, t);
-        g.gain.exponentialRampToValueAtTime(0.00001, t + 0.01);
-        g.connect(ctx.destination);
-        const o = ctx.createOscillator();
-        o.frequency.setValueAtTime(440, t);
-        o.connect(g);
-        o.start(t);
-        o.stop(t + 0.01);
-    } catch (_) {}
+/** Async unlock — use only when already unlocked or as fallback. */
+export async function unlockAudio() {
+    unlockFromGesture();
+    if (!ctx) return;
+    if (ctx.state === 'running') return;
+    try { await ctx.resume(); warmUp(); } catch (_) {}
 }
 
 export function initAudio() {
-    const unlock = () => { unlockAudio(); };
-    document.addEventListener('touchstart', unlock, { passive: true });
-    document.addEventListener('pointerdown', unlock, { passive: true });
+    const unlock = () => unlockFromGesture();
+    document.addEventListener('touchstart', unlock, { passive: true, capture: true });
+    document.addEventListener('pointerdown', unlock, { passive: true, capture: true });
+    document.addEventListener('click', unlock, { passive: true, capture: true });
     document.addEventListener('keydown', unlock, { passive: true });
 }
 
-export function setMuted(m) { muted = m; }
-export function isMuted()   { return muted; }
+export function setMuted(m) {
+    muted = m;
+    try { localStorage.setItem('orbit_muted', m ? '1' : '0'); } catch (_) {}
+}
+
+export function isMuted() {
+    return muted;
+}
+
+export function loadMutedPreference() {
+    try { muted = localStorage.getItem('orbit_muted') === '1'; } catch (_) {}
+}
 
 function gain(value, start) {
     const g = ctx.createGain();
@@ -82,27 +103,26 @@ function play(buildFn) {
     if (!ctx) return;
 
     const run = () => {
-        if (!ctx || muted) return;
+        if (!ctx || muted || ctx.state !== 'running') return;
         try { buildFn(ctx.currentTime); } catch (_) {}
     };
 
     if (ctx.state === 'running') {
         run();
+        return;
+    }
+
+    unlockFromGesture();
+    if (ctx.state === 'running') {
+        run();
     } else {
-        unlockAudio().then(run);
+        ctx.resume().then(run).catch(() => {});
     }
 }
 
 export function playTap() {
     play(t => {
-        const g = gain(0.12, t);
-        g.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
-        g.connect(ctx.destination);
-
-        const o = osc('sine', 520, t);
-        o.frequency.exponentialRampToValueAtTime(260, t + 0.08);
-        o.connect(g);
-        o.start(t); o.stop(t + 0.08);
+        blipTap(t);
     });
 }
 
