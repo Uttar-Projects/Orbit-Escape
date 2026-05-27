@@ -14,6 +14,19 @@
         window.__ADSGRAM_BLOCK_ID__ = '32979';
         window.__BOT_USERNAME__     = 'OrbitEscapeGameBot';
 
+        // Force hard-reload when app version changes.
+        // Telegram WebView caches the mini app locally and ignores HTTP cache headers.
+        // Bumping __APP_VER__ guarantees all users get fresh code on next open.
+        (function() {
+            var VER = 'v5';
+            try {
+                if (localStorage.getItem('__orbit_app_ver') !== VER) {
+                    localStorage.setItem('__orbit_app_ver', VER);
+                    location.reload(true);
+                }
+            } catch(_) {}
+        })();
+
         // HTML-level failsafe — runs WITHOUT any module imports.
         // If Render is sleeping, the module JS files hang and never execute,
         // leaving "Connecting..." on screen forever. This plain script rescues that.
