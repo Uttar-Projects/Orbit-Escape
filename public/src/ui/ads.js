@@ -47,13 +47,15 @@ export const AdBroker = {
                                 else reject({ skipped: true, done: false });
                             })
                             .catch(err => {
-                                const msg = err?.message || '';
-                                // Outside Telegram or block not found — fall back to stub silently
-                                if (msg.includes('launch parameters') || msg.includes('not found')) {
-                                    resolve(this._stub());
-                                } else {
-                                    reject({ error: true, done: false, msg });
-                                }
+                                // Any Adsgram error — fall back to stub silently
+                                // The SDK shows its own modal; we dismiss it and continue
+                                console.warn('[Adsgram] falling back to stub:', err?.message || err);
+                                // Dismiss any Adsgram modal left on screen
+                                try {
+                                    document.querySelectorAll('[class*="adsgram"], [id*="adsgram"]')
+                                        .forEach(el => el.remove());
+                                } catch (_) {}
+                                resolve(this._stub());
                             });
                     });
                 }

@@ -29,11 +29,15 @@
                 if (elapsed >= 8000 && el && el.textContent === 'Connecting...') {
                     el.textContent = 'Waking up server\u2026 please wait (~30s cold start)';
                 }
-                // After 35 s force-show menu regardless of module state
+                // After 35 s, only intervene if loading screen is still visible
+                // (game may already be running — never interrupt active gameplay)
                 if (elapsed >= 35000) {
                     clearInterval(timer);
-                    if (ls)   ls.style.display   = 'none';
-                    if (menu) menu.style.display  = 'flex';
+                    var lsVisible = ls && ls.style.display !== 'none' && ls.offsetParent !== null;
+                    if (lsVisible) {
+                        ls.style.display = 'none';
+                        if (menu) menu.style.display = 'flex';
+                    }
                 }
             }, 1000);
         })();
