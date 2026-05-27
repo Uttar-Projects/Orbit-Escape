@@ -454,22 +454,39 @@ export class GameEngine extends EventTarget {
             if (this.spawnTimer >= spawnInterval) {
                 this.spawnTimer = 0;
                 const a    = this.rng() * Math.PI * 2;
-                const dist = Math.max(this.w, this.h) * 0.7;
                 const size = this.planetRadius * 0.2 + this.rng() * this.planetRadius * 0.3;
                 const typeRoll = this.rng();
-                const type = typeRoll < 0.58 ? 'straight'
-                           : typeRoll < 0.82 ? 'orbit'
-                           :                    'spiral';
 
-                const orbitR = this.orbitRadius + 40 + this.rng() * 60;
+                // All obstacles now orbit the planet — no more straight-line debris.
+                // 'orbit'  — steady orbit near the player's ring (dangerous when close)
+                // 'spiral' — starts outside, spirals inward through the danger zone, exits
+                // 'cross'  — orbits at a different speed/radius so it crosses the player's path
+                const type = typeRoll < 0.40 ? 'orbit'
+                           : typeRoll < 0.70 ? 'spiral'
+                           :                   'cross';
+
+                // Orbit radius:
+                // orbit/cross  → span inside and outside player orbit so some always intersect
+                // spiral       → always starts well outside, spirals in
+                const playerOrbit = this.orbitRadius;
+                const orbitR = type === 'spiral'
+                    ? playerOrbit + 65 + this.rng() * 70
+                    : playerOrbit - 25 + this.rng() * 90; // -25 … +65 relative to player ring
+
+                const orbitDir = this.rng() < 0.5 ? 1 : -1;
+                // 'cross' gets a faster angular speed so it sweeps across the player ring
+                const orbitSpeed = type === 'cross'
+                    ? 0.025 + this.rng() * 0.015
+                    : 0.014 + this.rng() * 0.008;
+
                 this.obstacles.push({
-                    x: type === 'straight' ? cx + Math.cos(a) * dist : cx + Math.cos(a) * orbitR,
-                    y: type === 'straight' ? cy + Math.sin(a) * dist : cy + Math.sin(a) * orbitR,
-                    vx: -Math.cos(a) * (obsSpeed + Math.min(elapsedSec * 0.05, 4)),
-                    vy: -Math.sin(a) * (obsSpeed + Math.min(elapsedSec * 0.05, 4)),
+                    x: cx + Math.cos(a) * orbitR,
+                    y: cy + Math.sin(a) * orbitR,
+                    vx: 0, vy: 0,           // unused; all movement via angle+radius
                     orbitAngle: a,
                     orbitRadius: orbitR,
-                    orbitDir: this.rng() < 0.5 ? 1 : -1,
+                    orbitDir,
+                    orbitSpeed,
                     type,
                     size,
                     rot: this.rng() * 7,
@@ -498,22 +515,27 @@ export class GameEngine extends EventTarget {
         for (let i = this.obstacles.length - 1; i >= 0; i--) {
             const o = this.obstacles[i];
 
-            // Move by behaviour type
-            if (o.type === 'orbit') {
-                o.orbitAngle += 0.018 * o.orbitDir * dt * (this.slowTimer > 0 ? 0.45 : 1);
+            // All obstacles orbit the planet — movement via polar coords
+            const slowMul = this.slowTimer > 0 ? 0.45 : 1;
+            if (o.type === 'spiral') {
+                // Spirals inward from outside, passes through player ring, continues to planet
+                o.orbitRadius -= (0.28 + elapsedSec * 0.005) * dt * slowMul;
+                o.orbitAngle  += o.orbitSpeed * o.orbitDir * dt * slowMul;
                 o.x = cx + Math.cos(o.orbitAngle) * o.orbitRadius;
                 o.y = cy + Math.sin(o.orbitAngle) * o.orbitRadius;
-            } else if (o.type === 'spiral') {
-                o.orbitRadius -= (0.35 + elapsedSec * 0.006) * dt * (this.slowTimer > 0 ? 0.45 : 1);
-                o.orbitAngle  += 0.022 * o.orbitDir * dt;
+                if (o.orbitRadius < this.planetRadius + 8) { this.obstacles.splice(i, 1); continue; }
+            } else if (o.type === 'cross') {
+                // Faster angular speed — sweeps across the player orbit ring
+                o.orbitAngle += o.orbitSpeed * o.orbitDir * dt * slowMul;
                 o.x = cx + Math.cos(o.orbitAngle) * o.orbitRadius;
                 o.y = cy + Math.sin(o.orbitAngle) * o.orbitRadius;
-                // Despawn if spiral reaches planet
-                if (o.orbitRadius < this.planetRadius + 10) { this.obstacles.splice(i, 1); continue; }
+                // Despawn when it drifts well off screen
+                if (o.orbitRadius > Math.max(this.w, this.h) * 0.8) { this.obstacles.splice(i, 1); continue; }
             } else {
-                const spd = this.slowTimer > 0 ? 0.45 : 1;
-                o.x += o.vx * dt * spd;
-                o.y += o.vy * dt * spd;
+                // 'orbit' — steady circular orbit at fixed radius
+                o.orbitAngle += o.orbitSpeed * o.orbitDir * dt * slowMul;
+                o.x = cx + Math.cos(o.orbitAngle) * o.orbitRadius;
+                o.y = cy + Math.sin(o.orbitAngle) * o.orbitRadius;
             }
             o.rot += 0.05 * dt;
 
